@@ -207,7 +207,7 @@ $(static_tgt): %/pm_to_blib: | %/Makefile $(nonxs_tgt)
 $(dynamic_tgt) $(disabled_dynamic_tgt): %/pm_to_blib: | %/Makefile
 	$(MAKE) -C $(dir $@) all PERL_CORE=1 LIBPERL=$(LIBPERL) LINKTYPE=dynamic
 
-%/Makefile: %/Makefile.PL preplibrary cflags config.h | $(XSUBPP) miniperl$X
+%/Makefile: %/Makefile.PL preplibrary cflags config.h | $(XSUBPP) miniperl$X dynaloader
 	$(eval top=$(shell echo $(dir $@) | sed -e 's![^/]\+!..!g'))
 	cd $(dir $@) && $(top)miniperl_top -I$(top)lib Makefile.PL \
 	 INSTALLDIRS=perl INSTALLMAN1DIR=none INSTALLMAN3DIR=none \
