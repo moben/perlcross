@@ -66,6 +66,10 @@ else
 	function const { unset -v "$1"; }
 fi
 
+required archname
+default package perl5
+default version "$PERL_REVISION.$PERL_VERSION.$PERL_SUBVERSION"
+
 default prefix "/usr"
 default sharedir "$prefix/share"
 default html1dir "$sharedir/doc/perl/html"
@@ -78,9 +82,22 @@ default bin "$prefix/bin"
 default scriptdir "$prefix/bin"
 default otherlibdirs ' '
 default libsdirs ' '
-default privlib "$prefix/lib/perl"
-default archlib "$prefix/lib/perl/$archname"
+default privlib "$prefix/lib/$package"
+default archlib "$prefix/lib/$package/$version/$archname"
 default perlpath "$prefix/bin/perl"
+
+default sitebin	"$prefix/bin"
+default sitelib_stem "$prefix/lib/$package/site_perl"
+default sitelib "$sitelib_stem/$version"
+default siteprefix "$prefix"
+default sitescript "$prefix/bin"
+default sitearch "$sitelib_stem/$version/$archname"
+default sitearchexp "$sitearch"
+
+default sitebinexp "$sitebin"
+default sitelibexp "$sitelib"
+default siteprefixexp "$siteprefix"
+default sitescriptexp "$sitescript"
 
 default vendorman1dir "$man1dir"
 default vendorman3dir "$man3dir"
@@ -145,6 +162,10 @@ const archlibexp "$archlib"
 const privlibexp "$privlib"
 const binexp "$bin"
 
+default libpth "/lib /usr/lib /usr/local/lib"
+default glibpth "$libpth"
+default plibpth
+
 required PERL_API_REVISION
 required PERL_API_SUBVERSION
 required PERL_API_VERSION
@@ -156,7 +177,6 @@ required api_revision
 required api_subversion
 required api_version
 required api_versionstring
-default archname ''
 required doublesize
 required i16size
 required i16type
@@ -619,7 +639,7 @@ default d_sigaction undef
 default d_signbit undef
 default d_sigprocmask undef
 default d_sigsetjmp undef
-default d_sitearch undef
+default d_sitearch define
 default d_snprintf undef
 default d_sockatmark undef
 default d_sockatmarkproto define
@@ -779,7 +799,6 @@ default getservent_r_proto 0
 default getspnam_r_proto 0
 default gidformat '"lu"'
 default gidsign 1
-default glibpth
 default gmake gmake
 default gmtime_r_proto 0
 default gnulibc_version
@@ -899,7 +918,6 @@ default less less
 default lib_ext .a
 default libc
 default libperl libperl.a
-default libpth
 default libs
 default libsfiles
 default libsfound
@@ -968,7 +986,6 @@ default optimize
 default orderlib
 default osname linux
 default osvers current
-default package perl5
 default pager less
 default passcat 'cat /etc/passwd'
 default patchlevel
@@ -977,11 +994,10 @@ default perl
 default perl5
 default perl_patchlevel
 default perladmin 'nobody@nowhere.land'
-default perllibs
+default perllibs "$libs"
 default pg pg
 default phostname hostname
 default pidtype pid_t
-default plibpth
 default pmake
 default pr
 default procselfexe '"/proc/self/exe"'
@@ -1045,17 +1061,6 @@ default sig_num
 default sig_num_init
 default sig_size
 default signal_t void
-default sitearch
-default sitearchexp
-default sitebin
-default sitebinexp
-default sitelib
-default sitelib_stem
-default sitelibexp
-default siteprefix
-default siteprefixexp
-default sitescript
-default sitescriptexp
 default sizesize
 default sizetype
 default sleep
@@ -1159,7 +1164,6 @@ default vendorprefix
 default vendorprefixexp
 default vendorscript
 default vendorscriptexp
-default version "$PERL_REVISION.$PERL_VERSION.$PERL_SUBVERSION"
 default version_patchlevel_string "version $PERL_VERSION subversion $PERL_SUBVERSION"
 default versiononly undef
 default vi
