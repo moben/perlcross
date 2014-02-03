@@ -38,6 +38,21 @@ disabled_ext = $(disabled_nonxs_ext) $(disabled_dynamic_ext)
 ext_makefiles = $(patsubst %,%/Makefile,$(ext))
 disabled_ext_makefiles = $(pathsubst %,%/Makefile,$(disabled_ext))
 
+# ---[ perl-cross patches ]-----------------------------------------------------
+CROSSPATCHED = $(patsubst cnf/diffs/%.patch,%,$(shell find cnf/diffs -name '*.patch'))
+
+# note: it's ok to make this target manually, but generally the patches should be
+# applied automatically without calling it via direct dependencies on the files
+# in $(CROSSPATCHED)
+crosspatch: $(patsubst %,cnf/diffs/%.patched,$(CROSSPATCHED))
+
+$(CROSSPATCHED): %: | cnf/diffs/%.patched
+
+cnf/diffs/%.patched: cnf/diffs/%.patch
+	test -f cnf/diffs/$*.orig && cp cnf/diffs/$*.orig $* || cp $* cnf/diffs/$*.orig
+	patch $* cnf/diffs/$*.patch
+	touch $@
+
 # ---[ common ]-----------------------------------------------------------------
 
 # Do NOT delete any intermediate files
@@ -46,7 +61,7 @@ disabled_ext_makefiles = $(pathsubst %,%/Makefile,$(disabled_ext))
 
 # Force early building of miniperl -- not really necessary, but makes
 # build process more logical (no reason to even try CC if HOSTCC fails)
-all: miniperl$X dynaloader perl$x nonxs_ext utilities extensions translators
+all: crosspatch miniperl$X dynaloader perl$x nonxs_ext utilities extensions translators pods
 
 config.h: config.sh config_h.SH
 	CONFIG_H=$@ CONFIG_SH=$< ./config_h.SH
@@ -58,7 +73,7 @@ config-pm: $(CONFIGPM)
 
 xconfig-pm: $(XCONFIGPM)
 
-$(XCONFIGPM): tconfig.sh | xlib miniperl$X
+$(XCONFIGPM): tconfig.sh configpm | xlib miniperl$X cnf/diffs/configpm.patched
 	./miniperl_top configpm --config-sh=tconfig.sh --config-pm=xlib/Config.pm --config-pod=xlib/Config.pod
 
 xlib:
@@ -89,8 +104,8 @@ endif
 
 globals$O: uudmap.h bitcount.h
 
-uudmap.h bitcount.h: generate_uudmap$X
-	./generate_uudmap uudmap.h bitcount.h
+uudmap.h bitcount.h mg_data.h: generate_uudmap$X
+	./generate_uudmap uudmap.h bitcount.h mg_data.h
 
 opmini.c: op.c
 	cp -f $^ $@
@@ -163,13 +178,6 @@ git_version.h lib/Config_git.pl: make_patchnum.pl | miniperl$X
 lib/re.pm: ext/re/re.pm
 	cp -f ext/re/re.pm lib/re.pm
 
-pod/perlmodlib.pod: pod/perlmodlib.PL | miniperl$X
-	./miniperl_top -Ilib -Idist/Cwd -Idist/Cwd/lib $< -q
-
-autodoc: pod/perlintern.pod
-pod/perlintern.pod pod/perlapi.pod: autodoc.pl embed.fnc $(MANIFEST_CH)
-	./miniperl_top $<
-
 # NOT used by this Makefile, replaced by miniperl_top
 # Avoid building.
 lib/buildcustomize.pl: write_buildcustomize.pl | miniperl$X
@@ -189,6 +197,8 @@ DynaLoader$o: ext/DynaLoader/pm_to_blib
 
 ext/DynaLoader/pm_to_blib: %/pm_to_blib: %/Makefile
 	$(MAKE) -C $(dir $@) all PERL_CORE=1 LIBPERL=libperl.a LINKTYPE=static $(STATIC_LDFLAGS)
+
+ext/DynaLoader/Makefile: dist/lib/pm_to_blib
 
 $(static_tgt): %/pm_to_blib: %/Makefile $(nonxs_tgt)
 	$(MAKE) -C $(dir $@) all PERL_CORE=1 LIBPERL=libperl.a LINKTYPE=static $(STATIC_LDFLAGS)
@@ -212,7 +222,7 @@ extensions: cflags $(dynamic_tgt) $(static_tgt) $(nonxs_tgt)
 modules: extensions
 
 # Some things needed to make modules
-%/Makefile.PL: | miniperl$X
+%/Makefile.PL: | miniperl$X cnf/diffs/cpan/ExtUtils-MakeMaker/lib/ExtUtils/Liblist/Kid.pm.patched
 	./miniperl_top make_ext_Makefile.pl $@
 
 cflags: cflags.SH
@@ -238,8 +248,7 @@ cpan/Unicode-Normalize/Makefile: cpan/Unicode-Normalize/unicore/CombiningClass.p
 
 # mktables does not touch the files unless they need to be rebuilt,
 # which confuses make.
-$(UNICORE)/%.pl: $(UNICORE)/mktables $(UNICORE)/*.txt $(CONFIGPM) | miniperl$X
-	cd lib/unicore && ../../miniperl_top mktables
+$(UNICORE)/%.pl: uni.data
 	touch $@
 $(UNICOPY)/%.pl: $(UNICORE)/%.pl | $(UNICOPY)
 	cp -a $< $@
@@ -267,6 +276,15 @@ cpan/ExtUtils-ParseXS/Makefile cpan/ExtUtils-Constant/Makefile: \
 
 cpan/List-Util/pm_to_blib: dynaloader
 
+ext/Pod-Functions/pm_to_blib: cpan/Pod-Simple/pm_to_blib cpan/Pod-Escapes/pm_to_blib
+
+cpan/podlators/pm_to_blib: cnf/diffs/cpan/podlators/lib/Pod/Man.pm.patched
+
+uni.data: $(CONFIGPM) lib/unicore/mktables | miniperl$X
+	./miniperl_top lib/unicore/mktables -w -C lib/unicore -P pod -maketest -makelist -p
+
+unidatafiles $(unidatafiles) pod/perluniprops.pod: uni.data
+
 # ---[ modules cleanup & rebuilding ] ------------------------------------------
 
 modules-reset:
@@ -288,9 +306,6 @@ utilities: miniperl$X $(CONFIGPM)
 translators: miniperl$X $(CONFIGPM) dist/Cwd/pm_to_blib
 	$(MAKE) -C x2p all
 
-pod/%: miniperl$X lib/Config.pod pod/%.PL config.sh
-	cd pod && ../miniperl_top $*.PL
-
 # ---[ modules lists ]----------------------------------------------------------
 modules.done: modules.list uni.data
 	echo -n > modules.done
@@ -302,6 +317,34 @@ modules.pm.list: modules.done
 modules.list: $(CONFIGPM) $(MODLISTS) cflags
 	./modconfig_all
 
+# ---[ pods ]-------------------------------------------------------------------
+perltoc_pod_prereqs = extra.pods pod/perl5160delta.pod pod/perlapi.pod pod/perlintern.pod pod/perlmodlib.pod pod/perluniprops.pod
+
+pods: pod/perltoc.pod
+
+pod/perltoc.pod: $(perltoc_pod_prereqs) pod/buildtoc | miniperl$X cnf/diffs/Porting/pod_lib.pl.patched
+	./miniperl_top -f pod/buildtoc -q
+
+pod/perlapi.pod: pod/perlintern.pod
+
+pod/perlintern.pod: autodoc.pl embed.fnc | miniperl$X 
+	./miniperl_top autodoc.pl
+
+pod/perlmodlib.pod: pod/perlmodlib.PL MANIFEST | miniperl$X
+	./miniperl_top pod/perlmodlib.PL -q
+
+pod/perl5160delta.pod: pod/perldelta.pod
+	ln -sf perldelta.pod pod/perl5160delta.pod
+
+extra.pods: | miniperl$X
+	-@test ! -f extra.pods || rm -f `cat extra.pods`
+	-@rm -f extra.pods
+	-@for x in `grep -l '^=[a-z]' README.* | grep -v README.vms` ; do \
+	    nx=`echo $$x | sed -e "s/README\.//"`; \
+	    ln -sf ../$$x "pod/perl"$$nx".pod" ; \
+	    echo "pod/perl"$$nx".pod" >> extra.pods ; \
+	done
+
 # ---[ install ]----------------------------------------------------------------
 .PHONY: install install.perl install.pod
 
@@ -310,11 +353,13 @@ META.yml: Porting/makemeta Porting/Maintainers.pl Porting/Maintainers.pm miniper
 
 install: install.perl install.man
 
-install.perl: installperl miniperl$X
+install.perl: installperl | miniperl$X cnf/diffs/installperl.patched \
+		cnf/diffs/Porting/pod_lib.pl.patched
 	./miniperl_top installperl --destdir=$(DESTDIR) $(INSTALLFLAGS) $(STRIPFLAGS)
 	-@test ! -s extras.lst || $(MAKE) extras.install
 
-install.man: installman miniperl$X
+install.man: installman pod/perltoc.pod | miniperl$X cnf/diffs/installman.patched \
+		cnf/diffs/Porting/pod_lib.pl.patched
 	./miniperl_top installman --destdir=$(DESTDIR) $(INSTALLFLAGS)
 
 install.miniperl: miniperl$X xlib/Config.pm xlib/Config_heavy.pl

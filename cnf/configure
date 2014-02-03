@@ -74,12 +74,6 @@ if [ -z "$mode" ]; then
 	fi
 fi
 
-if [ "$mode" == "cross" -o "$mode" == "native" -o "$mode" == "target" ]; then
-	. $base/configure_dirs_targ.sh
-elif [ "$mode" == "buildmini" ]; then
-	. $base/configure_dirs_host.sh
-fi
-
 if [ "$mode" == "cross" ]; then
 	msg "Respawning configure for build and target platforms"
 	msg
@@ -132,7 +126,8 @@ if [ "$mode" == 'native' -o "$mode" == 'buildmini' -o "$mode" == "target" ]; the
 	. $base/configure_attr.sh
 	. $base/configure_link.sh
 	. $base/configure_dbug.sh
-	if [ "$usethreads" == 'define' ]; then
+	if [ "$usethreads" == 'define' -o "$useithreads" == 'define' -o "$use5005threads" == 'define' ]; then
+		test "$usethreads" == 'define' || setvar 'usethreads' 'define'
 		. $base/configure_thrd.sh
 		failpoint
 	fi
@@ -166,8 +161,15 @@ if [ "$mode" == 'native' ]; then
 	echo "                  ld:  $ld"
 	echo "                  ar:  $ar"
 	echo "              ranlib:  $ranlib"
+	echo
 	echo "              prefix:  $prefix"
 	echo " installation prefix:  $installprefix"
+	echo "         executables:  $bin"
+	echo "             scripts:  $bin"
+	echo "             privlib:  $privlib"
+	echo "             archlib:  $archlib"
+	echo " section 1 man pages:  $man1dir  (with '$man1ext' extension)"
+	echo " section 3 man pages:  $man3dir  (with '$man3ext' extension)"
 	echo
 elif [ "$mode" == 'cross' ]; then
 	echo "Generating config.h and xconfig.h"

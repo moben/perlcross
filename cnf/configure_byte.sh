@@ -6,7 +6,6 @@ function byteorder {
 
 	try_start
 	try_includes "sys/types.h"
-	try_includes "inttypes.h"
 	if [ "$uvsize" == 8 ]; then
 		try_add "$uvtype foo = 0x8877665544332211;"
 	elif [ "$uvsize" == 4 ]; then

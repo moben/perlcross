@@ -10,7 +10,7 @@ function extdir {
 			true
 		elif [ -f "$i/$L.c" -o -f "$i/$L.xs" ]; then
 			extadd "xs" "$i"
-		elif [ -f "$i/Makefile.PL" -o -f "$i/Makefile" -o -d "$i/lib" ]; then
+		elif [ -f "$i/Makefile.PL" -o -f "$i/Makefile" -o -d "$i/lib" -o -f "$i/$L.pm" ]; then
 			extadd "noxs" "$i"
 		fi
 	done
@@ -90,7 +90,6 @@ extonlyif XS/APItest "$usedl" == 'define'
 extonlyif XS/Typemap "$usedl" == 'define'
 extonlyif VMS-DCLsym "$osname" == "vms"		# XXX: is it correct?
 extonlyif VMS-Stdio "$osname" == "vms"
-extonlyif Sys-Hostname "true" == "false"	# XXX: MakeMaker fails here
 
 for d in ext cpan dist; do
 	msg "Looking for extensions recursively under $d/"

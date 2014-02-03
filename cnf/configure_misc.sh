@@ -16,11 +16,47 @@ if [ -n "$ldflags" -a "$x_lddlflags" != "user" ]; then
 	done
 fi
 
+mstart "Checking whether ld supports scripts"
+if not hinted 'ld_can_script'; then
+	cat > try.c <<EOM
+void foo() {}
+void bar() {}
+EOM
+	cat > try.h <<EOM
+LIBTEST_42 {
+ global:
+  foo;
+ local: *;
+ };
+EOM
+	log "try.c"
+	try_dump
+	log "try.h"
+	try_dump_h
+	rm -f a.out 2>/dev/null
+	# Default values are set in _genc, but here we need one much earlier
+	if [ ! -z "$lddlflags" ]; then
+		_lddlflags="$lddlflags"
+	else
+		_lddlflags=' -shared'
+	fi
+	if run $cc $cccdlflags $ccdlflags $ccflags $ldflags $_lddlflags -o a.out try.c \
+		-Wl,--version-script=try.h >/dev/null 2>&1 \
+		&&  test -s a.out 
+	then
+		setvar ld_can_script 'define'
+		result "yes"
+	else
+		setvar ld_can_script 'undef'
+		result "no"
+	fi
+fi
+
+mstart "Checking whether it's ok to enable large file support"
 if not hinted 'uselargefiles'; then
 	# Adding -D_FILE_OFFSET_BITS is mostly harmless, except
 	# when dealing with uClibc that was compiled w/o largefile
 	# support
-	mstart "Checking whether it's ok to enable large file support"
 	case "$ccflags" in
 		*-D_FILE_OFFSET_BITS=*)
 			result "already there"
@@ -34,8 +70,23 @@ if not hinted 'uselargefiles'; then
 fi
 if [ "$uselargefiles" == 'define' ]; then
 	appendvar 'ccdefines' " -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64"
+	log
 fi
 if [ "$usedl" == 'undef' -a -z "$allstatic" ]; then
 	msg "DynaLoader is disabled, making all modules static"
 	setvar 'allstatic' 1
+fi
+if [ "$usethreads" == 'define' ]; then
+	mstart 'Looking whether to use interpreter threads'
+	if [ "$useithreads" == 'define' ]; then
+		setvar 'useithreads' 'define'
+		result 'yes, using ithreads'	
+	elif [ "$use5005threads" == 'define' ]; then
+		setvar 'useithreads' 'undef'
+		result 'no, using 5.005 threads'
+	else 
+		setvar 'useithreads' 'define'
+		result 'yes, using ithreads'	
+	fi
+	log
 fi
