@@ -82,7 +82,7 @@ default bin "$prefix/bin"
 default scriptdir "$prefix/bin"
 default otherlibdirs ' '
 default libsdirs ' '
-default privlib "$prefix/lib/$package"
+default privlib "$prefix/lib/$package/$version"
 default archlib "$prefix/lib/$package/$version/$archname"
 default perlpath "$prefix/bin/perl"
 
@@ -232,6 +232,7 @@ default awk awk
 default baserev 5.0
 default bash
 default bison bison
+default bootstrap_charset undef
 default byacc byacc
 default byteorder
 default c
@@ -474,7 +475,10 @@ default d_inetaton undef
 default d_inetntop undef
 default d_inetpton undef
 default d_int64_t undef
+default d_ip_mreq undef
+default d_ip_mreq_source undef
 default d_ipv6_mreq undef
+default d_ipv6_mreq_source undef
 default d_isascii undef
 default d_isblank undef
 default d_isfinite undef
@@ -1014,6 +1018,7 @@ default ranlib ranlib
 default rd_nodata -1
 default readdir64_r_proto 0
 default readdir_r_proto 0
+default revision
 default rm rm
 default rm_try
 default rmail
