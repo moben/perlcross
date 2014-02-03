@@ -1,0 +1,8 @@
+#!/bin/sh
+
+grep = config.sh | sort > config.sh.sorted
+grep = config.sh.host | sort > config.sh.host.sorted
+
+diff -u config.sh.host.sorted config.sh.sorted > config.sh.diff
+./config.sh.diff.px config.sh.diff > config.sh.rep
+rm -f config.sh.host.sorted config.sh.sorted

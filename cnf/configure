@@ -1,8 +1,6 @@
 #!/bin/sh
 
 if [ -z "$base" ]; then export base=.; else export base; fi
-#export CFLAGS='-D_POSIX_C_SOURCE -D_XOPEN_SOURCE -D_GNU_SOURCE'
-
 config='config.bad'
 cfglog='config.log'
 
@@ -68,10 +66,10 @@ if [ "$mode" == "cross" ]; then
 		|| die "configure --mode=target failed"
 	msg
 elif [ "$mode" == "buildmini" ]; then
-	targetlabel=`archlabel "$target" "$targetarch"`
+	targetlabel=`archlabel "$build" "$buildarch"`
 	msg "Configuring build-time miniperl for $targetlabel"
-	if [ "x$target" != "x" ]; then pf1="$target-"; else pf1=""; fi
-	pf2="$target-"
+	if [ "x$build" != "x" ]; then pf1="$build-"; else pf1=""; fi
+	pf2="$build-"
 	config='xconfig.sh'
 elif [ "$mode" == "target" ]; then
 	targetlabel=`archlabel "$target" "$targetarch"`
@@ -90,8 +88,9 @@ fi
 
 if [ "$mode" == 'native' -o "$mode" == 'buildmini' -o "$mode" == "target" ]; then
 	. $base/configure_version.sh
-	. $base/configure_vars.sh
 	. $base/configure_hint.sh
+	. $base/configure_vars.sh
+	. $base/configure_cfby.sh
 	. $base/configure_prog.sh
 	. $base/configure_hdrs.sh
 	. $base/configure_type.sh
@@ -100,7 +99,9 @@ if [ "$mode" == 'native' -o "$mode" == 'buildmini' -o "$mode" == "target" ]; the
 	. $base/configure_byte.sh
 	. $base/configure_sigs.sh
 	. $base/configure_func.sh
+	. $base/configure_fung.sh
 	. $base/configure_link.sh
+	test "$usethreads" == 'define' && . $base/configure_thrd.sh
 	failpoint
 	. $base/configure_mods.sh
 	failpoint
@@ -141,7 +142,7 @@ elif [ "$mode" == 'cross' ]; then
 	echo
 	echo "Configuration completed for cross build"
 	echo
-	. xconfig.sh
+	. ./xconfig.sh
 	echo "      build platform:  $archname"
 	echo "          C compiler:  $cc"
 	echo "              linker:  $ld"
@@ -149,7 +150,7 @@ elif [ "$mode" == 'cross' ]; then
 	echo "              ranlib:  $ranlib"
 	echo "             objdump:  $objdump"
 	echo
-	. config.sh
+	. ./config.sh
 	echo "     target platform:  $archname"
 	echo "          C compiler:  $cc"
 	echo "                  ld:  $ld"

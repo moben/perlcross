@@ -43,8 +43,8 @@ function failpoint {
 }
 
 function mstart {
-	echo "$@" >> $cfglog
-	echo -n "$* ... " >& 2
+	echo -e "$@" >> $cfglog
+	echo -ne "$* ... " >& 2
 }
 
 # setvar name value
@@ -120,8 +120,8 @@ function require {
 }
 
 function symbolname {
-	echo "$1" | sed -e 's/^\(struct|enum|union|unsigned\) /s_/'\
-		-e 's/\*/ptr/g' -e 's/\.h$//' -e 's/[^A-Za-z0-9_]//' |\
+	echo "$1" | sed -e 's/^\(struct\|enum\|union\|unsigned\) /s_/'\
+		-e 's/\*/ptr/g' -e 's/\.h$//' -e 's/[^A-Za-z0-9_]//' -e 's/^s_\(.*\)/\1_s/' |\
 		tr 'A-Z' 'a-z'
 }
 
@@ -215,14 +215,13 @@ function ifhint {
 		result "(hinted) $h"
 		return 0
 	else
-		return -1
+		return 1
 	fi
 }
 
 function ifhintdefined {
 	h=`valueof "$1"`
 	if test -n "$h"; then
-		log "Hint for $1: $h"
 		if [ "$h" == 'define' ]; then
 			log "Hint for $1: $2 (yes, define)"
 			result "(hinted) $2"
@@ -230,13 +229,17 @@ function ifhintdefined {
 		else
 			log "Hint for $1: $2 (no, undef)"
 			result "(hinted) $3"
-			__=-1
+			__=1
 		fi	
 		return 0
 	else
-		return -1
+		return 1
 	fi
 }
+
+# for use in if clauses
+function nothinted { ifhint "$@" && return 1 || return 0; }
+function nohintdefined { ifhintdefined "$@" && return 1 || return 0; }
 
 # resdef result-yes result-no symbol symbol2
 function resdef {
@@ -249,7 +252,7 @@ function resdef {
 		setvar "$3" 'undef'
 		test -n "$4" && setvar "$4" 'undef'
 		result "$2"
-		return -1
+		return 1
 	fi	
 }
 

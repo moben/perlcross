@@ -156,8 +156,8 @@ default PERL_PATCHLEVEL
 default _a .a
 default _exe
 default _o .o
-default afs
-default afsroot
+default afs false
+default afsroot /afs
 default alignbytes 8
 default ansi2knr
 default aphostname /bin/hostname
@@ -165,35 +165,38 @@ default ar ar
 default archname64
 default archobjs
 default asctime_r_proto  0
-default awk
-default baserev
+default awk awk
+default baserev 5.0
 default bash
-default bison
+default bison bison
 default byacc byacc
 default byteorder
-default c '\c'
+default c
 default castflags 0
-default cat
+default cat cat
 default cc cc
-default cccdlflags
-default ccdlflags
-default ccflags
-default ccflags_uselargefiles
+default cccdlflags '-fPIC'
+default ccdlflags '-Wl,-E'
+default ccflags '-fno-strict-aliasing -pipe -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64'
+default ccflags_uselargefiles '-D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64'
 default ccname
 default ccsymbols
 default ccversion
-default cf_by 'Anonymous'
+default cf_by unknown
 default cf_email nobody@nowhere.land
-default cf_time
-default chgrp chgrp
+default cf_time "`date`"
+default chgrp
 default chmod chmod
-default chown chown
+default chown
 default clocktype
 default comm comm
 default compress
 default contains grep
+default config_arg0 ''
+default config_argc 0
+default config_args ''                                                        
 default cp cp
-default cpio cpio
+default cpio
 required cpp
 default cpp_stuff 42
 default cppccsymbols
@@ -231,6 +234,7 @@ default d_archlib undef
 default d_asctime_r undef
 default d_atolf undef
 default d_atoll undef
+default d_attribute_deprecated undef
 default d_attribute_format undef
 default d_attribute_malloc undef
 default d_attribute_nonnull undef
@@ -277,6 +281,7 @@ default d_dlerror undef
 default d_dlopen undef
 default d_dlsymun undef
 default d_dosuid undef
+default usedevel undef
 default d_drand48_r undef
 default d_drand48proto define
 default d_dup2 undef
@@ -327,6 +332,7 @@ default d_fsync undef
 default d_ftello undef
 default d_ftime undef
 default d_futimes undef
+default d_getaddrinfo undef
 default d_getcwd undef
 default d_getespwnam undef
 default d_getfsstat undef
@@ -348,6 +354,7 @@ default d_getlogin undef
 default d_getlogin_r undef
 default d_getmnt undef
 default d_getmntent undef
+default d_getnameinfo undef
 default d_getnbyaddr undef
 default d_getnbyname undef
 default d_getnent undef
@@ -389,6 +396,8 @@ default d_grpasswd undef
 default d_hasmntopt undef
 default d_htonl undef
 default d_ilogbl undef
+default d_inetntop undef
+default d_inetpton undef
 default d_inc_version_list undef
 default d_index undef
 default d_inetaton undef
@@ -538,7 +547,7 @@ default d_setservent_r undef
 default d_setsid undef
 default d_setvbuf undef
 default d_sfio undef
-default d_shm define
+default d_shm undef
 default d_shmat undef
 default d_shmatprototype define
 default d_shmctl undef
@@ -596,13 +605,20 @@ default d_symlink undef
 default d_syscall undef
 default d_syscallproto define
 default d_sysconf undef
-default d_sysernlst undef
+default d_sysernlst ''
 default d_syserrlst undef
 default d_system undef
 default d_tcgetpgrp undef
 default d_tcsetpgrp undef
 default d_telldir undef
 default d_telldirproto define
+default d_ctime64 undef
+default d_localtime64 undef
+default d_gmtime64 undef
+default d_mktime64 undef
+default d_difftime64 undef
+default d_asctime64 undef
+default d_timegm undef
 default d_time undef
 default d_times undef
 default d_tm_tm_gmtoff undef
@@ -610,7 +626,7 @@ default d_tm_tm_zone undef
 default d_tmpnam_r undef
 default d_truncate undef
 default d_ttyname_r undef
-default d_tz_name undef
+default d_tz_name 
 default d_tzname undef
 default d_u32align undef
 default d_ualarm undef
@@ -629,7 +645,7 @@ default d_vendorscript undef
 default d_vfork undef
 default d_void_closedir undef
 default d_voidsig undef
-default d_voidtty undef
+default d_voidtty
 default d_volatile undef
 default d_vprintf undef
 default d_vsnprintf undef
@@ -640,15 +656,15 @@ default d_wctomb undef
 default d_writev undef
 default d_xenix undef
 default date date
-default db_hashtype
-default db_prefixtype
+default db_hashtype 'unsigned int'
+default db_prefixtype 'size_t'
 default db_version_major
 default db_version_minor
 default db_version_patch
 default defvoidused 15
 default direntrytype 'struct dirent'
 default dlext 'so'
-default dlsrc dl_dlopen.xs
+default dlsrc 'dl_dlopen.xs'
 default drand01 'drand48()'
 default drand48_r_proto 0
 default dynamic_ext
@@ -706,7 +722,7 @@ default getservbyport_r_proto 0
 default getservent_r_proto 0
 default getspnam_r_proto 0
 default gidformat '"lu"'
-default gidsign -1
+default gidsign 1
 required gidsize
 required gidtype
 default glibpth
@@ -717,13 +733,14 @@ default grep grep
 default groupcat 'cat /etc/group'
 default groupstype gid_t
 default gzip gzip
-default h_fcntl
-default h_sysfile
+default h_fcntl false
+default h_sysfile true
 default hint 'default'
 default hostcat 'cat /etc/hosts'
 default i_arpainet undef
 default i_bsdioctl undef
 default i_crypt undef
+default i_assert undef
 default i_db undef
 default i_dbm undef
 default i_dirent undef
@@ -739,6 +756,7 @@ default i_ieeefp undef
 default i_inttypes undef
 default i_langinfo undef
 default i_libutil undef
+default i_mallocmalloc undef
 default i_limits define
 default i_locale undef
 default i_machcthr undef
@@ -747,6 +765,11 @@ default i_math undef
 default i_memory undef
 default i_mntent undef
 default i_ndbm undef
+default i_gdbmndbm undef
+default i_gdbm_ndbm undef
+default d_ndbm_h_uses_prototypes
+default d_gdbmndbm_h_uses_prototypes undef
+default d_gdbm_ndbm_h_uses_prototypes undef
 default i_netdb undef
 default i_neterrno undef
 default i_netinettcp undef
@@ -777,6 +800,7 @@ default i_sysmode undef
 default i_sysmount undef
 default i_sysndir undef
 default i_sysparam undef
+default i_syspoll undef
 default i_sysresrc undef
 default i_syssecrt undef
 default i_sysselct undef
@@ -809,7 +833,7 @@ default inc_version_list_init
 default incpath
 default inews
 default initialinstalllocation
-default issymlink "test -L"
+default issymlink "test -h"
 default ivdformat '"ld"'
 default known_extensions
 default ksh
@@ -864,7 +888,7 @@ default mv
 default myarchname
 default mydomain
 default myhostname
-default myuname
+default myuname ${target}
 default n -n
 default need_va_copy undef
 default netdb_hlen_type 'socklen_t'
@@ -876,9 +900,9 @@ default nm_opt
 default nm_so_opt
 default nonxs_ext
 default nroff nroff
-default nvEUformat '"%E"'
-default nvFUformat '"%F"'
-default nvGUformat '"%G"'
+default nvEUformat '"E"'
+default nvFUformat '"F"'
+default nvGUformat '"G"'
 default nv_preserves_uv_bits 32
 default nveformat '"e"'
 default nvfformat '"f"'
@@ -889,9 +913,9 @@ default objdump objdump
 default old_pthread_create_joinable PTHREAD_CREATE_JOINABLE
 default optimize
 default orderlib
-default osname
-default osvers
-default package
+default osname linux
+default osvers current
+default package perl5
 default pager less
 default passcat 'cat /etc/passwd'
 default patchlevel
@@ -907,8 +931,8 @@ default pidtype pid_t
 default plibpth
 default pmake
 default pr
-default procselfexe /proc/self/exe
-default procselfpath "/proc/self/exe"
+default procselfexe '"/proc/self/exe"'
+default procselfpath
 default prototype define
 default ptrsize
 default quadkind
@@ -925,22 +949,22 @@ default rm rm
 default rm_try
 default rmail
 default run
-default runnm
-default sPRIEUldbl '"E"'
-default sPRIFUldbl '"F"'
-default sPRIGUldbl '"G"'
-default sPRIXU64 '"lU"'
-default sPRId64 '"ld"'
+default runnm false
+default sPRIEUldbl '"LE"'
+default sPRIFUldbl '"LF"'
+default sPRIGUldbl '"LG"'
+default sPRIXU64 '"LX"'
+default sPRId64 '"Ld"'
 default sPRIeldbl '"Le"'
 default sPRIfldbl '"Lf"'
 default sPRIgldbl '"Lg"'
-default sPRIi64 'li"'
-default sPRIo64 '"lo"'
-default sPRIu64 '"lu"'
-default sPRIx64 '"lx"'
-default sSCNfldbl '"f"'
+default sPRIi64 '"Li"'
+default sPRIo64 '"Lo"'
+default sPRIu64 '"Lu"'
+default sPRIx64 '"Lx"'
+default sSCNfldbl '"Lf"'
 default sched_yield 'sched_yield()'
-default sed
+default sed sed
 default seedfunc srand48
 default selectminbits '32'
 default selecttype 'fd_set *'
@@ -990,7 +1014,7 @@ default spackage
 default spitshell cat
 default srand48_r_proto 0
 default srandom_r_proto 0
-default src
+default src `cd .. >/dev/null ; pwd`
 default ssizetype
 default startperl "$sharpbang$perlpath"
 default startsh
@@ -1017,23 +1041,24 @@ default timeincl
 default timetype
 default tmpnam_r_proto 0
 default to
-default touch
-default tr
-default trnl
+default touch touch
+default tr tr
+default trnl '\n'
 default troff
 default ttyname_r_proto 0
 default uidformat '"lu"'
 default uidsign
 default uidsize
 default uidtype
-default uname
-default uniq
+default uname uname
+default uniq uniq
 default uquadtype
 default use5005threads undef
 default use64bitall undef
 default use64bitint undef
 default usecrosscompile undef
 default usedl define
+default usedtrace undef
 default usefaststdio undef
 default useithreads undef
 default uselargefiles define
@@ -1041,20 +1066,20 @@ default uselongdouble undef
 default usemallocwrap define
 default usemorebits undef
 default usemultiplicity undef
-default usemymalloc undef
-default usenm undef
-default useopcode undef
+default usemymalloc n
+default usenm false
+default useopcode false
 default useperlio define
-default useposix define
+default useposix true
 default usereentrant undef
 default userelocatableinc undef
-default usesfio undef
-default useshrplib undef
+default usesfio false
+default useshrplib false
 default usesitecustomize undef
 default usesocks undef
 default usethreads undef
 default usevendorprefix undef
-default usevfork undef
+default usevfork false
 default usrinc
 default uuname
 default uvXUformat '"lX"'
@@ -1078,10 +1103,10 @@ default versiononly
 default vi
 default voidflags 15
 default xlibpth
-default yacc
+default yacc yacc
 default yaccflags
 default zcat
-default zip
+default zip zip
 
 if [ "$mode" == "buildmini" ]; then
 	required target_name

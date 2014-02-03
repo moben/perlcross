@@ -18,7 +18,7 @@ function hasdef {
 	else
 		setvar "d_${_defname}" "undef"
 		result 'no'
-		return -1
+		return 1
 	fi
 }
 
@@ -42,7 +42,7 @@ function hasfield {
 	else
 		setvar "$1" "undef"
 		result 'no'
-		return -1
+		return 1
 	fi
 }
 
@@ -60,6 +60,6 @@ check hasfield d_pwexpire 'struct passwd' pw_expire pwd.h
 check hasfield d_pwcomment 'struct passwd' pw_comment pwd.h
 check hasfield d_pwgecos 'struct passwd' pw_gecos pwd.h
 check hasfield d_pwpasswd 'struct passwd' pw_passwd pwd.h
-check hasfield d_statblks 'struct stat' st_blocks sys/types.h sys/stat.h
-check hasfield d_dirnamlen 'struct dirent' d_namelen sys/types.h dirent.define 
+check hasfield d_statblks 'struct stat' st_blocks 'sys/types.h sys/stat.h'
+check hasfield d_dirnamlen 'struct dirent' d_namelen 'sys/types.h'
 check hasfield d_grpasswd 'struct group' gr_passwd grp.h

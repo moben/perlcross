@@ -10,19 +10,21 @@ function haslibs {
 	try_add "int main(void) { return 0; }"
 
 	_libs=""
+	_libv="$1"
+	shift
 	for l in $*; do
 		if try_link_libs $L $l; then
 			_libs="$_libs $l"
 		fi
 	done
 
-	setvar "$1" "$_libs"
+	setvar "$_libv" "$_libs"
 	result "$_libs"
 }
 
-# hasfunc name args includes [symbol]
+# hasfunc name args includes
 function hasfunc {
-	if [ -n "$4" ]; then _s="$4"; else _s="d_$1"; fi
+	if [ -n "$4" ] ; then _s="$4"; else _s="d_$1"; fi
 
 	require 'cc'
 	mstart "Checking for $1"
@@ -35,25 +37,27 @@ function hasfunc {
 	resdef 'found' 'not found' "$_s"
 }
 
-# hasvar name includes
+# hasvar name includes [symbol]
 # We use try_link here instead of try_compile to be sure we have the
 # variable in question not only declared but also present in libraries we use.
 function hasvar {
+	if [ -n "$4" ] ; then _s="$4"; else _s="d_$1"; fi
+
 	require 'cc'
 	mstart "Checking for $1"
-	ifhintdefined "d_$1" 'present' 'missing' && return $__
+	ifhintdefined "$_s" 'present' 'missing' && return $__
 
 	try_start
 	try_includes $2
 	try_add "void foo() { };"
 	try_add "int main() { foo($1); return 0; }"
 	try_link
-	resdef 'found' 'not found' "d_$1"
+	resdef 'found' 'not found' "$_s"
 }
 
 function isvoid {
 	require 'cc'
-	isset "d_$1" || return -1
+	isset "d_$1" || return 1
 	mstart "Checking whether $1 is void"
 
 	try_start
@@ -63,13 +67,18 @@ function isvoid {
 	resdef 'yes' 'no' "d_void_$1"
 }
 
-check haslibs libs -lm -lcrypt -ldl
+if [ "$usethreads" == 'define' ]; then
+	check haslibs libs $try_libs $try_libs_thread
+else
+	check haslibs libs $try_libs
+fi
 
 check hasfunc _fwalk
 check hasfunc access "NULL,0" 'stdlib.h unistd.h'
 check hasfunc accessx
 check hasfunc aintl
 check hasfunc alarm "0" 'unistd.h'
+check hasfunc asctime64
 check hasfunc atolf
 check hasfunc atoll
 check hasfunc bcmp "NULL,NULL,0" 'stdlib.h string.h'
@@ -84,10 +93,14 @@ check hasfunc closedir
 check hasfunc copysignl "0.0,0.0" 'math.h'
 check hasfunc crypt
 check hasfunc ctermid
+check hasfunc ctime64
 check hasfunc cuserid
 check hasfunc difftime
+check hasfunc difftime64
 check hasfunc dirfd
+check hasfunc dlopen
 check hasfunc dlerror
+check hasfunc drand48
 check hasfunc dup2
 check hasfunc eaccess
 check hasfunc endgrent
@@ -110,7 +123,7 @@ check hasfunc fpathconf "0,0" 'unistd.h'
 check hasfunc fpclass
 check hasfunc fpclassify
 check hasfunc fpclassl
-check hasfunc frexpl
+check hasfunc frexpl '0,NULL' 'stdlib.h math.h'
 check hasfunc fseeko
 check hasfunc fsetpos
 check hasfunc fstatfs
@@ -118,6 +131,7 @@ check hasfunc fstatvfs
 check hasfunc fsync
 check hasfunc ftello
 check hasfunc futimes
+check hasfunc getaddrinfo
 check hasfunc getcwd
 check hasfunc getespwnam
 check hasfunc getfsstat
@@ -131,6 +145,7 @@ check hasfunc getitimer
 check hasfunc getlogin
 check hasfunc getmnt
 check hasfunc getmntent
+check hasfunc getnameinfo
 check hasfunc getnetbyaddr
 check hasfunc getnetbyname
 check hasfunc getnetent
@@ -139,7 +154,6 @@ check hasfunc getpgid
 check hasfunc getpgrp "" 'unistd.h'
 check hasfunc getpgrp2
 check hasfunc getppid
-check hasfunc getpriority
 check hasfunc getpriority "0,0" 'sys/time.h sys/resource.h'
 check hasfunc getprotobyaddr
 check hasfunc getprotobyname
@@ -153,11 +167,14 @@ check hasfunc getservbyport
 check hasfunc getservent
 check hasfunc getspnam
 check hasfunc gettimeofday
+check hasfunc gmtime64
 check hasfunc hasmntopt
 check hasfunc htonl "0" 'stdio.h sys/types.h netinet/in.h arpa/inet.h'
 check hasfunc ilogbl
 check hasfunc index "NULL,0" 'stdlib.h string.h strings.h'
 check hasfunc inet_aton
+check hasfunc inetntop
+check hasfunc inetpton
 check hasfunc isascii "'A'" 'stdio.h stdlib.h ctype.h'
 check hasfunc isfinite "0.0" 'math.h'
 check hasfunc isinf "0.0" 'math.h'
@@ -167,6 +184,7 @@ check hasfunc killpg
 check hasfunc lchown "NULL, 0, 0" 'stdlib.h unistd.h'
 check hasfunc link
 check hasfunc localeconv
+check hasfunc localtime64
 check hasfunc lockf
 check hasfunc lstat
 check hasfunc madvise
@@ -186,6 +204,7 @@ check hasfunc mkfifo
 check hasfunc mkstemp
 check hasfunc mkstemps
 check hasfunc mktime
+check hasfunc mktime64
 check hasfunc mmap
 check hasfunc modfl "0.0,NULL" 'stdlib.h math.h'
 check hasfunc mprotect
@@ -205,6 +224,8 @@ check hasfunc poll
 check hasfunc pthread_atfork
 check hasfunc pthread_attr_setscope
 check hasfunc pthread_yield
+check hasfunc rand
+check hasfunc random
 check hasfunc readdir
 check hasfunc readlink
 check hasfunc readv
@@ -246,7 +267,10 @@ check hasfunc setservent
 check hasfunc setsid
 check hasfunc setvbuf
 check hasfunc sfreserve "" 'sfio.h'
+check hasfunc shmat
+check hasfunc shmctl
 check hasfunc shmdt
+check hasfunc shmget
 check hasfunc sigaction
 check hasfunc signbit
 check hasfunc sigprocmask
@@ -257,6 +281,7 @@ check hasfunc socket "0,0,0" 'sys/types.h sys/socket.h'
 check hasfunc socketpair
 check hasfunc socks5_init
 check hasfunc sqrtl "0.0" 'math.h'
+check hasfunc statvfs
 check hasfunc strchr "NULL,0" 'stdlib.h string.h strings.h'
 check hasfunc strcoll "NULL,NULL" 'stdlib.h string.h'
 check hasfunc strerror "0" 'string.h stdlib.h'
@@ -280,6 +305,7 @@ check hasfunc tcgetpgrp
 check hasfunc tcsetpgrp
 check hasfunc telldir
 check hasfunc time
+check hasfunc timegm
 check hasfunc times
 check hasfunc truncate
 check hasfunc ualarm
@@ -300,3 +326,4 @@ check hasfunc writev
 
 check isvoid closedir "NULL" 'stdlib.h sys/types.h dirent.h'
 check hasvar sys_errlist 'stdio.h'
+check hasvar tzname 'time.h'

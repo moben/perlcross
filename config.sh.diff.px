@@ -1,0 +1,18 @@
+#!/usr/bin/perl -n
+
+next if /^\+\+\+/;
+next if /^---/;
+next unless /^[+-]/;
+next unless /^(.)([^=]+)=(.*)/;
+
+$a = ($1 eq '+' ? \%new : \%old);
+$a->{$2} = cl($3);
+$all{$2} = 1;
+
+END {
+	foreach $v (sort keys %all) {
+		printf "%25s   %25s    %25s\n", $v, $old{$v}, $new{$v};
+	}
+}
+
+sub cl { my $s = shift; $s =~ s/^'(.*)'$/$1/; return length($s) > 20 ? substr($s, 0, 20).'...' : $s; }
