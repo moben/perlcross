@@ -183,10 +183,10 @@ while [ $i -le $# -o -n "$n" ]; do
 			;;
 		host-*)
 			what=`echo "$a" | sed -e 's/^host-//'`
-			hco="$hco --$what='$v'"
+			hco="$hco --$what=$v"
 			;;
-		target-*)
-			what=`echo "$a" | sed -e 's/-/_/g'`
+		target-*|with-*)
+			what=`echo "$a" | sed -e 's/^[^-]\+-//' -e 's/-/_/g'`
 			setvaru "$what" "$v"
 			;;
 		disable-mod|disable-ext|disable-module|disable-modules)

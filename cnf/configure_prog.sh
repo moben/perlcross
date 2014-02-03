@@ -134,10 +134,89 @@ if [ -z "$cctype" ]; then
 	fi
 fi
 
+mstart "Checking whether $cc is a C++ compiler"
+if not hinted 'd_cplusplus'; then
+	try_start
+	try_cat <<END
+#if defined(__cplusplus)
+YES
+#endif
+END
+	try_dump
+	if not run $cc $ccflags -E try.c > try.out 2>>$cfglog; then
+		setvar 'd_cplusplus' 'undef'
+		result "probably no"
+	else
+		_r=`grep -v '^#' try.out | grep . | head -1 | grep '^YES'`
+		if [ -n "$_r" ]; then
+			setvar 'd_cplusplus' 'define'
+			result "yes"
+		else
+			setvar 'd_cplusplus' 'undef'
+			result 'no'
+		fi
+	fi
+fi
+
+mstart "Deciding how to declare external symbols"
+if not hinted "extern_C"; then
+	case "$d_cplusplus" in
+		define)
+			setvar "extern_C" 'extern "C"'
+			result "$extern_C"
+			;;
+		*)
+			setvar "extern_C" 'extern'
+			result "$extern_C"
+			;;
+	esac
+fi
+
+mstart "Checking whether target executable format is ELF"
+if not hinted 'bin_ELF'; then
+	try_start
+	try_cat <<END
+int main(void) { return 0; }
+END
+	if try_link; then
+		_r=`file try$_e | grep ELF`;
+		test -n "$_r"
+		resdef 'yes' 'no' 'bin_ELF'
+	else
+		setvar 'bin_ELF' 'undef'
+		result "not sure"
+	fi
+fi
+
 if [ "$mode" == 'target' -o "$mode" == 'native' ]; then
 	if [ -n "$sysroot" ]; then
 		msg "Adding --sysroot to {cc,ld}flags"
 		setvar 'ccflags' "--sysroot='$sysroot' $ccflags"
 		setvar 'ldflags' "--sysroot='$sysroot' $ldflags"
 	fi
+fi
+
+
+# Set up largefile support, if needed.
+# This must be done very early since it affects $ccflags, and thus the compiler behavior
+# including type sizes.
+mstart "Checking whether it's ok to enable large file support"
+if not hinted 'uselargefiles'; then
+	# Adding -D_FILE_OFFSET_BITS is mostly harmless, except
+	# when dealing with uClibc that was compiled w/o largefile
+	# support
+	case "$ccflags" in
+		*-D_FILE_OFFSET_BITS=*)
+			result "already there"
+			;;
+		*)
+			try_start
+			try_includes "stdio.h"
+			try_compile -D_FILE_OFFSET_BITS=64
+			resdef "yes, enabling it" "no, it's disabled" 'uselargefiles' 
+	esac
+fi
+if [ "$uselargefiles" == 'define' ]; then
+	appendvar 'ccflags' " -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64"
+	log
 fi
