@@ -74,7 +74,7 @@ if test X"$args" != "X" ; then
 
 	: $ext will either be 'Name' or 'Name1/Name2' etc
 	: convert ext into cname and mname
-	mname=`echo $ext   | sed 's!/!::!g'`
+	mname=`echo $ext   | sed 's!-!::!g'`
 	cname=`echo $mname | sed 's!:!_!g'`
 
 	if test "$ext" = "DynaLoader"; then
