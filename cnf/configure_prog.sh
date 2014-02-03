@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # Find out which progs to use (mostly by trying prefixes based on $target)
 
@@ -17,7 +17,7 @@ function whichprog {
 			result "$_force ($_src)"
 			return 0
 		else
-			result "$_src '$_force' not found"
+			result "'$_force' not found ($_src)"
 			if [ -n "$_fail" -a "$_fail" != "0" ]; then
 				fail "no $_what found"
 			fi
@@ -74,9 +74,52 @@ END
 		_r=`grep -v '^#' try.out | grep . | head -1 | grep '^VERSION' | sed -e 's/VERSION //' -e 's/"//g'`
 		if [ -n "$_r" ]; then
 			setvar 'gccversion' "$_r"
+			setvar 'cctype' 'gcc'
 			result "gcc ver. $_r"
 		else
 			result "probably not gcc"
+		fi
+	fi
+fi
+
+if [ -z "$cctype" ]; then
+	mstart "Trying to guess what kind of compiler \$cc is"
+	if not hinted 'cctype'; then
+		if $cc -V >try.out 2>&1; then
+			_cl=`head -1 try.out`
+		elif $cc --version >try.out 2>&1; then
+			_cl=`head -1 try.out`
+		else
+			_cl=''
+		fi
+
+		if [ -n "$_cl" ]; then
+			case "$_cl" in
+				*\(GCC\)*)
+					setvar 'cctype' 'gcc'
+					result 'GNU cc (probably defunct)'
+					;;
+				*"Intel(R) C++ Compiler"*|*"Intel(R) C Compiler"*)
+					setvar 'cctype' 'icc'
+					setvar ccversion `$cc --version | sed -n -e 's/^icp\?c \((ICC) \)\?//p'`
+					result 'Intel cc'
+					;;
+				*" Sun "*"C"*)
+					setvar 'cctype' 'sun'
+					result 'Sun cc'
+					;;
+				*)
+					result 'unknown'
+					;;
+			esac
+		else 
+			_cc=`echo "$cc" | sed -e 's!.*/!!' -e "s/^$target-//" | sed -e 's/-[0-9][0-9.a-z]*$//'`
+			if [ -n "$_cc" -a "$_cc" != 'cc' ]; then
+				setvar 'cctype' "$_cc"
+				result "$_cc"
+			else
+				result 'unknown'
+			fi
 		fi
 	fi
 fi

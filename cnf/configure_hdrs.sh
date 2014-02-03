@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # We can't really check if header is there (gcc reports no errors for (some?) missing
 # headers). And, in fact, we need not to. All we want to know is whether it's
@@ -67,6 +67,7 @@ check hashdr 'sys/mount.h'
 check hashdr 'sys/ndir.h'
 check hashdr 'sys/param.h'
 check hashdr 'sys/poll.h'
+check hashdr 'sys/prctl.h'
 check hashdr 'sys/resource.h'
 check hashdr 'sys/security.h'
 check hashdr 'sys/select.h'

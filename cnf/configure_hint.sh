@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # We want to see
 #	var=value
@@ -9,14 +9,15 @@
 # That's why more specific hint files are tried first.
 
 function usehints {
-	hintfile="$base/hints/$1"
+	hintfunc="$1"
+	hintfile="$base/hints/$2"
 	if [ -f "$hintfile" ]; then
 		msg "	using $hintfile"
-		sed -e '/^\([A-Za-z0-9_]\+\)=/s//hint \1 /' "$hintfile" > config.hint.tmp
+		sed -e "/^\([A-Za-z0-9_]\+\)=/s//$hintfunc \1 /" "$hintfile" > config.hint.tmp
 		. ./config.hint.tmp
 		rm -f config.hint.tmp
 	else
-		msg "	no hints for $1"
+		log "	no hints for $2"
 	fi
 }
 
@@ -27,63 +28,60 @@ function hint {
 	fi
 }
 
+function hintover {
+	eval _value="\"\$$1\""
+	eval _source="\"\$x_$1\""
+	if [ -z "$_value" -o "$_source" == 'hinted' ]; then
+		setvaru "$1" "$2" 'hinted'
+	fi
+}
+
+function trypphints {
+	hh="$1"; shift
+	hp="$1"; shift
+	for ha in $@; do
+		test -n "$hp" && usehints "$hh" "$hp-$ha"
+		usehints "$hh" "$ha"
+	done
+}
+
 msg "Checking which hints to use"
 if [ -n "$userhints" ]; then
 	for h in `echo "$userhints" | sed -e 's/,/ /g'`; do
-		usehints "$h"
+		usehints 'hint' "$h"
 	done
 fi
 	
 # For i686-pc-linux-gnu, try such hints:
 #	i686-pc-linux-gnu	(complete target arch)
-#	linux-gnu		(os name)
-#	linux
-#	i686-pc			(machine name)
-#	i686
+#	a/i686-pc		(architecture/machine name)
+#	a/i686
+#	s/linux-gnu		(operating system name)
+#	s/linux
 if [ -n "$targetarch" ]; then
 	h_arch=`echo "$targetarch" | cut -d - -f 1`
 	h_mach=`echo "$targetarch" | cut -d - -f 2`
 	h_base=`echo "$targetarch" | cut -d - -f 3`
 	h_type=`echo "$targetarch" | cut -d - -f 3-`
 	log "	got arch='$h_arch' mach='$h_mach' base='$h_base' type='$h_type'"
-	usehints "a/$targetarch"
-	usehints "t/$h_type"
-	usehints "t/$h_base"
-	usehints "h/$h_arch-$h_mach"
-	usehints "h/$h_arch"
+
+	case "$mode" in
+		buildmini) h_pref='host' ;;
+		target) h_pref='target' ;;
+		*) h_pref=''
+	esac
+
+	trypphints 'hint' "$h_pref"\
+		"$targetarch" "$h_arch-$h_mach" "$h_arch" \
+		"$h_type" "$h_base" "default"
+
 	# Once we get all this $h_*, let's set archname
 	setvardefault archname "$h_arch-$h_base"
 elif [ -n "$target" ]; then
-	usehints "z/$target"
+	usehints 'hint' "$target"
 	setvardefault archname "$target"
+	usehints 'hint' "default"
 fi
-
-usehints "default"
 
 # Add separator to log file
 log
-
-# Process -A arguments, if any
-test -n "$n_appendlist" && for((i=0;i<n_appendlist;i++)); do
-	k=`valueof "appendlist_k_$i"`
-	v=`valueof "appendlist_v_$i"`
-	x=`valueof "appendlist_x_$i"`
-	if [ -z "$k" -a -n "$v" ]; then
-		k="$v"
-		v=""
-	fi
-	case "$k" in
-		*:*) a=${k/%:*/}; k=${k/#*:/} ;;
-		*) a='append-sp' ;;
-	esac
-	case "$a" in
-		append-sp) setvaru $k "`valueof $k` $v" 'user' ;;
-		append) setvaru $k "`valueof $k`$v" 'user' ;;
-		prepend) setvaru $k "$v`valueof $k`" 'user' ;;
-		define) setordefine "$k" "$x" "$v" 'define' ;;
-		undef) setordefine "$k" "$x" "" 'undef' ;;
-		clear) setvaru $k '' 'user' ;;
-		eval) setvaru $k `eval "$v"` 'user' ;;
-		*) die "Bad -A action $a" ;;
-	esac
-done

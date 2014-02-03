@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # haslibs symbol libs...
 function haslibs {
@@ -57,8 +57,8 @@ function hasvar {
 
 function isvoid {
 	require 'cc'
-	ifhint "d_$1" && return
 	mstart "Checking whether $1 is void"
+	ifhint "d_$1" && return
 
 	try_start
 	try_includes $3
@@ -68,9 +68,9 @@ function isvoid {
 }
 
 if [ "$usethreads" == 'define' ]; then
-	check haslibs libs $try_libs $try_libs_thread
+	check haslibs libs $libswanted $try_libs $try_libs_thread
 else
-	check haslibs libs $try_libs
+	check haslibs libs $libswanted $try_libs
 fi
 
 check hasfunc _fwalk
@@ -224,6 +224,7 @@ check hasfunc poll
 check hasfunc pthread_atfork
 check hasfunc pthread_attr_setscope
 check hasfunc pthread_yield
+check hasfunc prctl
 check hasfunc rand
 check hasfunc random
 check hasfunc readdir

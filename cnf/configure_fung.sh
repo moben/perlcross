@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # Some guessing after we have all d_funcs ready
 
@@ -55,4 +55,15 @@ if [ "$d_times" == 'define' ]; then
 			result "it's not clock_t, assuming long"
 		fi
 	fi
+fi
+
+if [ "$d_prctl" == 'define' ]; then
+	mstart "Checking whether prctl supports PR_SET_NAME"
+	try_start
+	try_includes 'sys/prctl.h'
+	try_add "int main (int argc, char *argv[]) {"
+	try_add "	return (prctl (PR_SET_NAME, \"Test\"));"
+	try_add "}"
+	try_compile
+	resdef 'yes' 'no' 'd_prctl_set_name'
 fi
