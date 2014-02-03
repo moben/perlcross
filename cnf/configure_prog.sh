@@ -7,16 +7,17 @@ function whichprog {
 	_what="$1"; shift
 	_symbol="$1"; shift
 	_fail="$1"; shift
-	eval _force="\"\$$_symbol\""
+	_force=`valueof "$_symbol"`
+	_src=`valueof "x_$_symbol"`
 	mstart "Checking for $_what"
 
 	if [ -n "$_force" ]; then
 		if which "$_force" >&/dev/null; then
-			result "$_force (forced)"
 			setvar "$_symbol" "$_force"
+			result "$_force ($_src)"
 			return 0
 		else
-			result "forced '$_force' not found"
+			result "$_src '$_force' not found"
 			if [ -n "$_fail" -a "$_fail" != "0" ]; then
 				fail "no $_what found"
 			fi
@@ -27,8 +28,8 @@ function whichprog {
 	for p in "$@"; do
 		if [ -n "$p" ]; then
 			if which "$p" >&/dev/null; then
-				result "$p"
 				setvar "$_symbol" "$p"
+				result "$p"
 				return 0
 			fi
 		fi
@@ -49,7 +50,7 @@ check whichprog "ranlib"     ranlib 0  ${pf1}ranlib ${pf2}ranlib
 check whichprog "readelf"    readelf 1 ${pf1}readelf ${pf2}readelf readelf
 check whichprog "objdump"    objdump 1 ${pf1}objdump ${pf2}objdump
 
-const 'cpp' "$cc -E"
+setvar 'cpp' "$cc -E"
 
 failpoint
 
@@ -64,15 +65,16 @@ VERSION __VERSION__
 #endif
 #endif
 END
-	if not run $cc $cflags -E try.c > try.out 2>>$cfglog; then
+	try_dump
+	if not run $cc $ccflags -E try.c > try.out 2>>$cfglog; then
 		result "definitely not gcc"
 	else
 		# a bit paranoid here, in case some non-gnu compiler will decide to
 		# output something unexpected
 		_r=`grep -v '^#' try.out | grep . | head -1 | grep '^VERSION' | sed -e 's/VERSION //' -e 's/"//g'`
 		if [ -n "$_r" ]; then
-			result "gcc ver. $_r"
 			setvar 'gccversion' "$_r"
+			result "gcc ver. $_r"
 		else
 			result "probably not gcc"
 		fi

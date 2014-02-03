@@ -23,7 +23,7 @@ function usehints {
 function hint {
 	eval _value="\"\$$1\""
 	if [ -z "$_value" ]; then
-		setvar "$1" "$2"
+		setvaru "$1" "$2" 'hinted'
 	fi
 }
 
@@ -52,13 +52,38 @@ if [ -n "$targetarch" ]; then
 	usehints "h/$h_arch-$h_mach"
 	usehints "h/$h_arch"
 	# Once we get all this $h_*, let's set archname
-	default archname "$h_arch-$h_base"
+	setvardefault archname "$h_arch-$h_base"
 elif [ -n "$target" ]; then
 	usehints "z/$target"
-	default archname "$target"
+	setvardefault archname "$target"
 fi
 
 usehints "default"
 
 # Add separator to log file
 log
+
+# Process -A arguments, if any
+test -n "$n_appendlist" && for((i=0;i<n_appendlist;i++)); do
+	k=`valueof "appendlist_k_$i"`
+	v=`valueof "appendlist_v_$i"`
+	x=`valueof "appendlist_x_$i"`
+	if [ -z "$k" -a -n "$v" ]; then
+		k="$v"
+		v=""
+	fi
+	case "$k" in
+		*:*) a=${k/%:*/}; k=${k/#*:/} ;;
+		*) a='append-sp' ;;
+	esac
+	case "$a" in
+		append-sp) setvaru $k "`valueof $k` $v" 'user' ;;
+		append) setvaru $k "`valueof $k`$v" 'user' ;;
+		prepend) setvaru $k "$v`valueof $k`" 'user' ;;
+		define) setordefine "$k" "$x" "$v" 'define' ;;
+		undef) setordefine "$k" "$x" "" 'undef' ;;
+		clear) setvaru $k '' 'user' ;;
+		eval) setvaru $k `eval "$v"` 'user' ;;
+		*) die "Bad -A action $a" ;;
+	esac
+done

@@ -4,7 +4,7 @@
 function haslibs {
 	require 'cc'
 	mstart "Checking libraries"
-	ifhint 'libs' && return
+	ifhint $1 && return
 
 	try_start
 	try_add "int main(void) { return 0; }"
@@ -57,7 +57,7 @@ function hasvar {
 
 function isvoid {
 	require 'cc'
-	isset "d_$1" || return 1
+	ifhint "d_$1" && return
 	mstart "Checking whether $1 is void"
 
 	try_start

@@ -10,6 +10,7 @@ function die {
 	exit -1
 }
 
+# note: setvar()s should preceede result() to produce a nice log
 function result {
 	echo "Result: $*" >> $cfglog
 	echo >> $cfglog
@@ -47,16 +48,51 @@ function mstart {
 	echo -ne "$* ... " >& 2
 }
 
+# setenv name value
+# emulates (incorrect in sh) statement $$1="$2"
+function setenv {
+	eval $1="'$2'"
+}
+
 # setvar name value
 # emulates (incorrect in sh) statement $$1="$2"
 function setvar {
-	eval $1="'$2'"
-	log "Set $1='$2'"
+	_x=`valueof "$1"`
+	if [ "$_x" != "$2" ]; then
+		eval $1="'$2'"
+		log "Set $1='$2'"
+	fi
 }
 
+# setvar for user-defined variables
+# additional care is taken here to allow setting
+# variables *not* listed in _gencfg
+# $uservars keeps the list of user-set variables
+# $x_(varname) is set to track putvar() calls for this variable
+uservars=''
+function setvaru {
+	if [ -n "$uservars" ]; then
+		uservars="$uservars $1"
+	else
+		uservars="$1"
+	fi
+	setenv "$1" "$2"
+	setenv "u_$1" "$2"
+	if [ -n "$3" ]; then
+		setenv "x_$1" "$3"
+	else
+		setenv "x_$1" 'user'
+	fi
+	log "Set user $1='$2'"
+}
+
+
 # putvar name value
-# just writes given variable to config
+# writes given variable to config, and checks it as
+# "written" if necessary (i.e. for user variables)
 function putvar {
+	_x=`valueof "x_$1"`
+	test -n "$_x" && setenv "x_$1" 'written'
 	echo "$1='$2'" >> $config
 	setvar "$1" "$2"
 }
@@ -66,30 +102,6 @@ function setifndef {
 	if [ -z "$v" ]; then
 		setvar "$1" "$2"
 	fi
-}
-
-# default name value
-function default {
-	v=`valueof "$1"`
-	if [ -z "$v" ]; then
-		putvar "$1" "$2"
-	else
-		putvar "$1" "$v"
-	fi
-}
-
-# required name
-function required {
-	v=`valueof "$1"`
-	if [ -n "$v" ]; then
-		putvar "$1" "$v"
-	else
-		fail "Required variable $1 not defined"
-	fi
-}
-
-function const {
-	putvar "$1" "$2"
 }
 
 # archlabel target targetarch -> label
@@ -102,6 +114,15 @@ function archlabel {
 		echo "$1"
 	else
 		echo "unknown"
+	fi
+}
+
+function setvardefault {
+	v=`valueof "$1"`
+	if [ -z "$v" ]; then
+		setvar "$1" "$2"
+	else
+		setvar "$1" "$v"
 	fi
 }
 
@@ -160,14 +181,14 @@ function try_dump_out {
 function try_preproc {
 	require 'cpp'
 	#try_dump
-	run $cpp $cflags try.c > try.out 2>> $cfglog
+	run $cpp $ccflags try.c > try.out 2>> $cfglog
 }
 
 function try_compile {
 	require 'cc'
 	require '_o'
 	try_dump
-	run $cc $cflags -c -o try$_o try.c >> $cfglog 2>&1
+	run $cc $ccflags -c -o try$_o try.c >> $cfglog 2>&1
 }
 
 # an equivalent of try_compile with -Werror, but without
@@ -177,7 +198,7 @@ function try_compile_check_warnings {
 	require 'cc'
 	require '_o'
 	try_dump
-	run $cc $cflags -c -o try$_o try.c > try.out 2>&1
+	run $cc $ccflags -c -o try$_o try.c > try.out 2>&1
 	_r=$?
 	cat try.out >> $cfglog
 	if [ $_r != 0 ]; then
@@ -192,7 +213,7 @@ function try_compile_check_warnings {
 function try_link_libs {
 	require 'cc'
 	try_dump
-	run $cc $cflags -o try$_e try.c $* >> $cfglog 2>&1
+	run $cc $ccflags -o try$_e try.c $* >> $cfglog 2>&1
 }
 
 function try_link {
@@ -233,9 +254,11 @@ function pullval {
 
 function ifhint {
 	h=`valueof "$1"`
+	x=`valueof "x_$1"`
+	test -z "$x" && x='preset'
 	if test -n "$h"; then
-		log "Hint for $1: $h"
-		result "(hinted) $h"
+		log "Value for $1: $h ($x)"
+		result "($x) $h"
 		return 0
 	else
 		return 1
@@ -250,14 +273,16 @@ function hinted {
 
 function ifhintdefined {
 	h=`valueof "$1"`
+	x=`valueof "x_$1"`
+	test -z "$x" && x='preset'
 	if test -n "$h"; then
 		if [ "$h" == 'define' ]; then
-			log "Hint for $1: $2 (yes, define)"
-			result "(hinted) $2"
+			log "Value for $1: $2 (yes, define) ($x)"
+			result "($x) $2"
 			__=0
 		else
-			log "Hint for $1: $2 (no, undef)"
-			result "(hinted) $3"
+			log "Value for $1: $2 (no, undef) ($x)"
+			result "($x) $3"
 			__=1
 		fi	
 		return 0
@@ -287,4 +312,22 @@ function resdef {
 
 function modsymname {
 	echo "$1" | sed -e 's!^\(ext\|cpan\|dist\|lib\)/!!' -e 's![:/-]!_!g' | tr A-Z a-z
+}
+
+# like source but avoid $PATH searches for simple file names
+function sourcenopath {
+	case "$1" in
+		/*) source "$1" ;;
+		*) source "./$1" ;;
+	esac
+}
+
+# appendsvar vardst value-to-append
+function appendvar {
+	v=`valueof "$1"`
+	if [ -n "$v" -a -n "$2" ]; then
+		setvar "$1" "$v $2"
+	elif [ -z "$v" -a -n "$2" ]; then
+		setvar "$1" "$2"
+	fi
 }

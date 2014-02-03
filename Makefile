@@ -11,6 +11,11 @@ STATIC = static
 MINIPERL = ./miniperl$X -Ilib
 MINIPERL_EXE = miniperl$X
 RUNPERL = ./miniperl$X -Ilib
+# The following modules are required to build Makefiles for other modules
+# Be careful here! They must be built before running any Makefile.PLs,
+# and they must have their own rules down below (search for EXTUTILS)
+EXTUTILS = lib/ExtUtils/xsubpp lib/ExtUtils/Constant.pm \
+	$(patsubst cpan/ExtUtils-Constant/lib/%,lib/%,$(wildcard cpan/ExtUtils-Constant/lib/ExtUtils/Constant/*.pm))
 
 POD1 = $(wildcard pod/*.pod)
 MAN1 = $(patsubst pod/%.pod,man/man1/%$(man1ext),$(POD1))
@@ -39,7 +44,7 @@ tgt = $(nonxs_tgt) $(dynamic_tgt) $(static_tgt)
 
 # Force early building of miniperl -- not really necessary, but makes
 # build process more logical (no reason to even try CC if HOSTCC fails)
-all: miniperl$X dynaloader nonxs_ext perl$x utilities extensions translators
+all: miniperl$X dynaloader perl$x nonxs_ext utilities extensions translators
 
 config.h: config.sh config_h.SH
 	CONFIG_H=$@ CONFIG_SH=$< ./config_h.SH
@@ -68,7 +73,7 @@ Makefile:
 # ---[ host/miniperl ]----------------------------------------------------------
 
 miniperl$X: miniperlmain$O $(obj:$o=$O) opmini$O perlmini$O
-	$(HOSTCC) -o $@ $(filter %$O,$^) $(HOSTLIBS)
+	$(HOSTCC) $(HOSTLDFLAGS) -o $@ $(filter %$O,$^) $(HOSTLIBS)
 
 miniperlmain$O: miniperlmain.c patchlevel.h
 
@@ -102,7 +107,7 @@ perlmini$O: perlmini.c
 
 perl$x: perlmain$o $(obj) libperl$a $(static_tgt) ext.libs
 	$(eval extlibs=$(shell cat ext.libs))
-	$(CC) -o $@ -Wl,-E $(filter %$o,$^) $(filter %$a,$^) $(static_obj) $(LIBS) $(extlibs)
+	$(CC) $(LDFLAGS) -o $@ -Wl,-E $(filter %$o,$^) $(filter %$a,$^) $(static_obj) $(LIBS) $(extlibs)
 
 %$o: %.c config.h
 	$(CC) $(CFLAGS) -c -o $@ $<
@@ -125,10 +130,8 @@ perl.o: git_version.h
 
 preplibrary: miniperl$X $(CONFIGPM) lib/re.pm
 
-$(CONFIGPM_FROM_CONFIG_SH): $(CONFIGPOD)
-
 configpod: $(CONFIGPOD)
-$(CONFIGPOD): config.sh miniperl$X configpm Porting/Glossary lib/Config_git.pl
+$(CONFIGPM_FROM_CONFIG_SH) $(CONFIGPOD): config.sh miniperl$X configpm Porting/Glossary lib/Config_git.pl
 	./miniperl_top configpm
 
 # Both git_version.h and lib/Config_git.pl are built
@@ -152,17 +155,13 @@ DynaLoader.o: ext/DynaLoader/pm_to_blib
 ext/DynaLoader/pm_to_blib: %/pm_to_blib: %/Makefile
 	$(MAKE) -C $(dir $@) all PERL_CORE=1 LIBPERL=libperl.a LINKTYPE=static $(STATIC_LDFLAGS)
 
-ext/DynaLoader/Makefile: lib/ExtUtils/xsubpp
-
-lib/ExtUtils/xsubpp: cpan/ExtUtils-ParseXS/pm_to_blib
-
 $(static_tgt): %/pm_to_blib: %/Makefile $(nonxs_tgt)
 	$(MAKE) -C $(dir $@) all PERL_CORE=1 LIBPERL=libperl.a LINKTYPE=static $(STATIC_LDFLAGS)
 
 $(dynamic_tgt): %/pm_to_blib: %/Makefile
 	$(MAKE) -C $(dir $@) all PERL_CORE=1 LIBPERL=libperl.a LINKTYPE=dynamic
 
-%/Makefile: %/Makefile.PL miniperl$X miniperl_top preplibrary cflags
+%/Makefile: %/Makefile.PL preplibrary cflags | $(EXTUTILS) miniperl$X miniperl_top
 	$(eval top=$(shell echo $(dir $@) | sed -e 's![^/]\+!..!g'))
 	cd $(dir $@) && $(top)miniperl_top Makefile.PL PERL_CORE=1 PERL=$(top)miniperl_top
 
@@ -192,10 +191,10 @@ dynaloader: $(DYNALOADER)
 $(DYNALOADER): ext/DynaLoader/pm_to_blib ext/DynaLoader/Makefile
 	make -C $(dir $<)
 
-cpan/Devel-PPPort/PPPort.pm:
+cpan/Devel-PPPort/PPPort.pm: | miniperl$X
 	cd cpan/Devel-PPPort && ../../miniperl_top PPPort_pm.PL
 
-cpan/Devel-PPPort/ppport.h: cpan/Devel-PPPort/PPPort.pm
+cpan/Devel-PPPort/ppport.h: cpan/Devel-PPPort/PPPort.pm | miniperl$X
 	cd cpan/Devel-PPPort && ../../miniperl_top ppport_h.PL
 
 UNICORE = lib/unicore
@@ -205,7 +204,7 @@ cpan/Unicode-Normalize/Makefile: cpan/Unicode-Normalize/unicore/CombiningClass.p
 
 # mktables does not touch the files unless they need to be rebuilt,
 # which confuses make.
-$(UNICORE)/%.pl: $(UNICORE)/mktables $(UNICORE)/*.txt miniperl$X
+$(UNICORE)/%.pl: $(UNICORE)/mktables $(UNICORE)/*.txt $(CONFIGPM) | miniperl$X 
 	cd lib/unicore && ../../miniperl_top mktables
 	touch $@
 $(UNICOPY)/%.pl: $(UNICORE)/%.pl | $(UNICOPY)
@@ -223,12 +222,33 @@ $(patsubst %,%/pm_to_blib,$(mkppport_lst)): %/pm_to_blib: %/ppport.h
 $(patsubst %,%/ppport.h,$(mkppport_lst)): cpan/Devel-PPPort/ppport.h
 	cp -f $< $@
 
+# $EXTUTILS building rules
+lib/ExtUtils/xsubpp: cpan/ExtUtils-ParseXS/lib/ExtUtils/xsubpp
+	cp -f $< $@
+
+lib/ExtUtils/Constant.pm: cpan/ExtUtils-Constant/lib/ExtUtils/Constant.pm
+	cp -f $< $@
+
+lib/ExtUtils/Constant/%: cpan/ExtUtils-Constant/lib/ExtUtils/Constant/%
+	mkdir -p `dirname $@`
+	cp -f $< $@
+
+cpan/ExtUtils-ParseXS/lib/ExtUtils/xsubpp: cpan/ExtUtils-ParseXS/pm_to_blib
+
+# No ExtUtils dependencies here because that's where they come from
+cpan/ExtUtils-ParseXS/Makefile cpan/ExtUtils-Constant/Makefile: \
+		%/Makefile: %/Makefile.PL preplibrary cflags | miniperl$X miniperl_top
+	$(eval top=$(shell echo $(dir $@) | sed -e 's![^/]\+!..!g'))
+	cd $(dir $@) && $(top)miniperl_top Makefile.PL PERL_CORE=1 PERL=$(top)miniperl_top
+
+cpan/List-Util/pm_to_blib: dynaloader
+
 # ---[ Misc ]-------------------------------------------------------------------
 
 utilities: miniperl$x $(CONFIGPM) $(plextract)
 	$(MAKE) -C utils all
 
-translators: miniperl$x $(CONFIGPM)
+translators: miniperl$x $(CONFIGPM) cpan/Cwd/pm_to_blib
 	$(MAKE) -C x2p all
 
 pod/%: miniperl$X lib/Config.pod pod/%.PL config.sh
