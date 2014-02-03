@@ -1,0 +1,2 @@
+Prototype checks for functions outside _thrd: mmap, shmat
+lseektype: try off64_t instead of relying on _FILE_OFFSET_BITS?
