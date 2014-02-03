@@ -91,7 +91,7 @@ default siteman3dir "$man3dir"
 default sitehtml1dir "$html1dir"
 default sitehtml3dir "$html3dir"
 
-default installprefix "$sysroot"
+default installprefix ''
 default_inst html1dir
 default_inst html3dir
 default_inst man1dir
@@ -220,8 +220,9 @@ default cat cat
 default cc cc
 default cccdlflags '-fPIC'
 default ccdlflags '-Wl,-E'
-default ccflags '-fno-strict-aliasing -pipe -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64'
-default ccflags_uselargefiles '-D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64'
+default ccflags '-fno-strict-aliasing -pipe'
+default ccflags_uselargefiles ''
+default ccdefines ''
 default ccname
 default ccsymbols
 default ccversion
@@ -564,7 +565,7 @@ default d_sin6_scope_id undef
 default d_sockaddr_sa_len undef
 default d_seekdir undef
 default d_select undef
-default d_sem define
+default d_sem undef
 default d_semctl undef
 default d_semctl_semid_ds undef
 default d_semctl_semun undef
@@ -1089,6 +1090,7 @@ default timeincl
 default timetype
 default tmpnam_r_proto 0
 default to :
+default toolsprefix
 default touch touch
 default tr tr
 default trnl '\n'

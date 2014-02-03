@@ -2,20 +2,46 @@
 
 # Some guessing after we have all d_funcs ready
 
+function logvars {
+	for i in $*; do
+		v=`valueof $i`
+		log -n "$i=$v "
+	done
+	log ""
+}
+
+function alldefined {
+	logvars $*
+	for i in $*; do
+		v=`valueof $i`
+		if [ "$v" != 'define' ]; then
+			return 1
+		fi
+	done
+	return 0
+}
+
 mstart "Checking whether you have the full shm*(2) library"
-case "$d_shmctl$d_shmget$d_shmat$d_shmdt" in
-	*undef*)
-		result 'no'
-		setvar "d_shm" 'undef'
-		;;
-	*)
-		result 'yes'
-		setvar 'd_shm' 'define'
-		;;
-esac
+if alldefined d_shmctl d_shmget d_shmat d_shmdt; then
+	setvar 'd_shm' 'define'
+	result 'yes'
+else
+	setvar "d_shm" 'undef'
+	result 'no'
+fi
+
+mstart "Checking whether you have the full sem*(2) library"
+if alldefined d_semctl d_semget d_semop i_syssem; then
+	setvar 'd_sem' 'define'
+	result 'yes'
+else
+	setvar 'd_sem' 'undef'
+	result 'no'
+fi
 
 mstart "Looking how to get error messages"
 # Configure has quite a long piece on strerror, which basically means just this:
+logvars d_strerror d_sys_errlist
 if [ "$d_strerror" == 'define' ]; then
 	setvar 'd_strerrm' 'strerror(e)'
 	result 'strerror()'
@@ -28,6 +54,7 @@ else
 fi
 
 mstart "Looking for a random number function"
+logvars d_drand48 d_random d_rand
 if [ "$d_drand48" == 'define' ]; then
 	setvar 'randfunc' 'drand48'
 	result 'good, found drand48()'
@@ -46,6 +73,7 @@ fi
 # assume that if there's clock_t defined that's what times() returns.
 if [ "$d_times" == 'define' ]; then
 	mstart "Looking what times() may return"
+	logvars d_clock_t
 	if nothinted clocktype; then
 		if [ "$d_clock_t" == 'define' ]; then
 			setvar clocktype 'clock_t'
@@ -67,3 +95,24 @@ if [ "$d_prctl" == 'define' ]; then
 	try_compile
 	resdef 'yes' 'no' 'd_prctl_set_name'
 fi
+
+
+# checkfpclass func D1 D2 D3 ....
+function checkfpclass {
+	f="$1"; shift
+	v=`valueof "d_$f"`	
+	if [ "$v" == 'define' ]; then
+		mstart "Checking whether $f() constants are defined"
+		if alldefined `echo $* | sed -e 's/\</d_/g'`; then
+			result 'yes'
+		else
+			setvar "d_$f" 'undef'
+			result "no, disabling $f()"
+		fi
+	fi
+}
+
+checkfpclass fpclassify FP_SNAN FP_QNAN FP_INFINITE FP_NORMAL FP_SUBNORMAL FP_ZERO
+checkfpclass fpclass FP_SNAN FP_QNAN FP_NEG_INF FP_POS_INF FP_NEG_INF \
+	FP_NEG_NORM FP_POS_NORM FP_NEG_NORM FP_NEG_DENORM FP_POS_DENORM \
+	FP_NEG_DENORM FP_NEG_ZERO FP_POS_ZERO FP_NEG_ZERO

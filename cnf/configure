@@ -16,7 +16,7 @@ if [ "$mode" == 'help' ]; then
 	exit
 fi
 
-if [ -z "$keeplog" ]; then
+if [ -z "$keeplog" -a "$mode" != 'regen' ]; then
 	cat "$cfglog" > "$cfglog_base"
 else
 	cat "$cfglog" >> "$cfglog_base"
@@ -31,11 +31,22 @@ if [ -z "$mode" ]; then
 	else
 		buildarch=`$base/config.sub "$build" 2>>$cfglog`
 	fi
-	if [ -z "$buildarch" ]; then
-		result "unknown"
-		die "Can't guess build platform"
-	else
+	if [ -n "$buildarch" ]; then
 		result "$buildarch"
+	else
+		gccbuild=`gcc -v 2>&1 | grep Target | sed -e 's/Target: *//'`
+		buildarch=`$base/config.sub "$gccbuild" 2>>$cfglog`
+		if [ -n "$gccbuild" ]; then
+			result "$buildarch"
+		else
+			if [ -n "$build" ]; then
+				setvar 'buildarch' "$build"
+			else
+				setvar 'buildarch' 'unknown'
+			fi
+			result "$buildarch"
+			msg "WARNING: Couldn't guess build platform, using '$buildarch'"
+		fi
 	fi
 
 	if [ -z "$target" -o "$target" == "$build" ]; then
@@ -48,15 +59,18 @@ if [ -z "$mode" ]; then
 		mode='cross'
 		mstart "Guessing target architecture"	
 		targetarch=`$base/config.sub "$target" 2>>$cfglog`
-		if [ -z "$targetarch" ]; then
+		if [ -n "$targetarch" ]; then
+			result "$targetarch"
+		else
 			gcctarget=`$target-gcc -v 2>&1 | grep Target | sed -e 's/Target: *//'`
 			targetarch=`$base/config.sub "$gcctarget" 2>>$cfglog`
-			if [ -z "$targetarch" ]; then
-				result "unknown"
-				die "Can't determine target architecture"
+			if [ -n "$targetarch" ]; then
+				result "$targetarch"
+			else
+				result "($target)"
+				msg "WARNING: Couldn't determine target architecture, using '$target'"
 			fi
 		fi
-		result "$targetarch"
 	fi
 fi
 
@@ -69,8 +83,9 @@ fi
 if [ "$mode" == "cross" ]; then
 	msg "Respawning configure for build and target platforms"
 	msg
+	test -n "$targetarch" && tarch="$targetarch" || tarch="$target"
 	run $0 $hco --keeplog --mode=buildmini --targetarch="$buildarch"\
-		--target-name="$target" --target-arch="$targetarch" --sysroot="$sysroot"\
+		--target-name="$target" --target-arch="$tarch"\
 		|| die "configure --mode=buildmini failed"
 	msg
        	run $0 "$@" --keeplog --mode=target --target="$target" --targetarch="$targetarch"\
@@ -105,7 +120,6 @@ if [ "$mode" == 'native' -o "$mode" == 'buildmini' -o "$mode" == "target" ]; the
 	. $base/configure_prog.sh
 	. $base/configure_hinu.sh
 	. $base/configure_cfby.sh
-	. $base/configure_attr.sh
 	. $base/configure_hdrs.sh
 	. $base/configure_type.sh
 	. $base/configure_type_ext.sh
@@ -113,18 +127,20 @@ if [ "$mode" == 'native' -o "$mode" == 'buildmini' -o "$mode" == "target" ]; the
 	. $base/configure_byte.sh
 	. $base/configure_sigs.sh
 	. $base/configure_func.sh
+	. $base/configure_defs.sh
 	. $base/configure_fung.sh
+	. $base/configure_attr.sh
 	. $base/configure_link.sh
 	. $base/configure_dbug.sh
 	if [ "$usethreads" == 'define' ]; then
 		. $base/configure_thrd.sh
 		failpoint
 	fi
+	. $base/configure_misc.sh
 	if [ "$mode" != "buildmini" ]; then
 		. $base/configure_mods.sh
 		failpoint
 	fi
-	. $base/configure_misc.sh
 	. $base/configure_genc.sh
 	failpoint
 	if [ "$mode" == 'target' ]; then

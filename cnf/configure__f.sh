@@ -142,7 +142,8 @@ function require {
 
 function symbolname {
 	echo "$1" | sed -e 's/^\(struct\|enum\|union\|unsigned\) /s_/'\
-		-e 's/\*/ptr/g' -e 's/\.h$//' -e 's/[^A-Za-z0-9_]//' -e 's/^s_\(.*\)/\1_s/' |\
+		-e 's/\*/ptr/g' -e 's/\.h$//' -e 's/[^A-Za-z0-9_]//' \
+		-e 's/^s_\(.*\)/\1_s/' -e 's/_//g' |\
 		tr 'A-Z' 'a-z'
 }
 
@@ -188,7 +189,7 @@ function try_compile {
 	require 'cc'
 	require '_o'
 	try_dump
-	run $cc $ccflags -c -o try$_o try.c >> $cfglog 2>&1
+	run $cc $ccflags "$@" -c -o try$_o try.c >> $cfglog 2>&1
 }
 
 # an equivalent of try_compile with -Werror, but without
@@ -259,6 +260,18 @@ function ifhint {
 	if test -n "$h"; then
 		log "Value for $1: $h ($x)"
 		result "($x) $h"
+		return 0
+	else
+		return 1
+	fi
+}
+
+function ifhintsilent {
+	h=`valueof "$1"`
+	x=`valueof "x_$1"`
+	test -z "$x" && x='preset'
+	if test -n "$h"; then
+		log "Value for $1: $h ($x)"
 		return 0
 	else
 		return 1

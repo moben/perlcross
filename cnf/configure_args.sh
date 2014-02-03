@@ -104,6 +104,7 @@ while [ $i -le $# -o -n "$n" ]; do
 	# note that $x==1 means $k must be set; the value, $v, may be empty
 	case "$a" in
 		help|regen*|mode|host|target|build|keeplog|[dehrsEKOSV]) x='' ;;
+		all-static|no-*) x='' ;;
 		*) x=1 ;;
 	esac
 	# fetch argument if necessary (--set foo=bar)
@@ -154,9 +155,19 @@ while [ $i -le $# -o -n "$n" ]; do
 		siteprefix|sitehtml[13]dir)	setvar $a "$v" ;;
 		siteman[13]dir|vendorman[13]dir)setvar $a "$v" ;;
 		vendorprefix|vendorhtml[13]dir)	setvar $a "$v" ;;
-		build|target|targetarch)	setvar $a "$v" ;;
+		target|targetarch)		setvar $a "$v" ;;
+		build|buildarch)		setvar $a "$v" ;;
 		cc|cpp|ar|ranlib|objdump)	setvar $a "$v" ;;
 		sysroot)			setvar $a "$v" ;;
+		ttp|tools-prefix|target-tools-prefix)
+			setvar 'toolsprefix' "$v"
+			;;
+		no-dynaloader|without-dynaloader)
+			setvaru 'usedl' 'undef' 'user'
+			;;
+		with-dynaloader)
+			setvaru 'usedl' 'define' 'user'
+			;;
 		hint|hints)
 			if [ -n "$userhints" ]; then
 				userhints="$userhints,$v"
