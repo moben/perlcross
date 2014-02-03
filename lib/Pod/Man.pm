@@ -1,7 +1,6 @@
 # Pod::Man -- Convert POD data to formatted *roff input.
-# $Id: Man.pm,v 2.16 2007-11-29 01:35:53 eagle Exp $
 #
-# Copyright 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007
+# Copyright 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009
 #     Russ Allbery <rra@stanford.edu>
 # Substantial contributions by Sean Burke <sburke@cpan.org>
 #
@@ -36,10 +35,7 @@ use Pod::Simple ();
 
 @ISA = qw(Pod::Simple);
 
-# Don't use the CVS revision as the version, since this module is also in Perl
-# core and too many things could munge CVS magic revision strings.  This
-# number should ideally be the same as the CVS revision in podlators, however.
-$VERSION = '2.16';
+$VERSION = '2.23';
 
 # Set the debugging level.  If someone has inserted a debug function into this
 # class already, use that.  Otherwise, use any Pod::Simple debug function
@@ -72,7 +68,7 @@ sub new {
     my $class = shift;
     my $self = $class->SUPER::new;
 
-    # Tell Pod::Simple to handle S<> by automatically inserting &nbsp;.
+    # Tell Pod::Simple not to handle S<> by automatically inserting &nbsp;.
     $self->nbsp_for_S (1);
 
     # Tell Pod::Simple to keep whitespace whenever possible.
@@ -94,6 +90,13 @@ sub new {
     # problems if we ever clash with Pod::Simple's own internal class
     # variables.
     %$self = (%$self, @_);
+
+    # Send errors to stderr if requested.
+    if ($$self{stderr}) {
+        $self->no_errata_section (1);
+        $self->complain_stderr (1);
+        delete $$self{stderr};
+    }
 
     # Initialize various other internal constants based on our arguments.
     $self->init_fonts;
@@ -251,11 +254,11 @@ sub _handle_element_start {
 
     # If we have a command handler, we need to accumulate the contents of the
     # tag before calling it.  Turn off IN_NAME for any command other than
-    # <Para> so that IN_NAME isn't still set for the first heading after the
-    # NAME heading.
+    # <Para> and the formatting codes so that IN_NAME isn't still set for the
+    # first heading after the NAME heading.
     if ($self->can ("cmd_$method")) {
         DEBUG > 2 and print "<$element> starts saving a tag\n";
-        $$self{IN_NAME} = 0 if ($element ne 'Para');
+        $$self{IN_NAME} = 0 if ($element ne 'Para' && length ($element) > 1);
 
         # How we're going to format embedded text blocks depends on the tag
         # and also depends on our parent tags.  Thankfully, inside tags that
@@ -347,21 +350,20 @@ sub format_text {
     my $convert = $$options{convert};
     my $literal = $$options{literal};
 
-    # Normally we do character translation, but we won't even do that in
-    # <Data> blocks.
-    if ($convert) {
-        if (ASCII) {
-            $text =~ s/(\\|[^\x00-\x7F])/$ESCAPES{ord ($1)} || "X"/eg;
-        } else {
-            $text =~ s/(\\)/$ESCAPES{ord ($1)} || "X"/eg;
-        }
-    }
-
     # Cleanup just tidies up a few things, telling *roff that the hyphens are
-    # hard and putting a bit of space between consecutive underscores.
+    # hard, putting a bit of space between consecutive underscores, and
+    # escaping backslashes.  Be careful not to mangle our character
+    # translations by doing this before processing character translation.
     if ($cleanup) {
+        $text =~ s/\\/\\e/g;
         $text =~ s/-/\\-/g;
         $text =~ s/_(?=_)/_\\|/g;
+    }
+
+    # Normally we do character translation, but we won't even do that in
+    # <Data> blocks or if UTF-8 output is desired.
+    if ($convert && !$$self{utf8} && ASCII) {
+        $text =~ s/([^\x00-\x7F])/$ESCAPES{ord ($1)} || "X"/eg;
     }
 
     # Ensure that *roff doesn't convert literal quotes to UTF-8 single quotes,
@@ -392,6 +394,10 @@ sub quote_literal {
     # array or hash index, separated out just because we want to use it in
     # several places in the following regex.
     my $index = '(?: \[.*\] | \{.*\} )?';
+
+    # If in NAME section, just return an ASCII quoted string to avoid
+    # confusing tools like whatis.
+    return qq{"$_"} if $$self{IN_NAME};
 
     # Check for things that we don't want to quote, and if we find any of
     # them, return the string with just a font change and no quoting.
@@ -640,10 +646,10 @@ sub switchquotes {
         # to Roman rather than the actual previous font when used in headings.
         # troff output may still be broken, but at least we can fix nroff by
         # just switching the font changes to the non-fixed versions.
-        $nroff =~ s/\Q$$self{FONTS}{100}\E(.*)\\f[PR]/$1/g;
-        $nroff =~ s/\Q$$self{FONTS}{101}\E(.*)\\f([PR])/\\fI$1\\f$2/g;
-        $nroff =~ s/\Q$$self{FONTS}{110}\E(.*)\\f([PR])/\\fB$1\\f$2/g;
-        $nroff =~ s/\Q$$self{FONTS}{111}\E(.*)\\f([PR])/\\f\(BI$1\\f$2/g;
+        $nroff =~ s/\Q$$self{FONTS}{100}\E(.*?)\\f[PR]/$1/g;
+        $nroff =~ s/\Q$$self{FONTS}{101}\E(.*?)\\f([PR])/\\fI$1\\f$2/g;
+        $nroff =~ s/\Q$$self{FONTS}{110}\E(.*?)\\f([PR])/\\fB$1\\f$2/g;
+        $nroff =~ s/\Q$$self{FONTS}{111}\E(.*?)\\f([PR])/\\f\(BI$1\\f$2/g;
 
         # Now finally output the command.  Bother with .ie only if the nroff
         # and troff output aren't the same.
@@ -709,6 +715,7 @@ sub outindex {
     for (@output) {
         my ($type, $entry) = @$_;
         $entry =~ s/\"/\"\"/g;
+        $entry =~ s/\\/\\\\/g;
         $self->output (".IX $type " . '"' . $entry . '"' . "\n");
     }
 }
@@ -731,6 +738,19 @@ sub start_document {
         DEBUG and print "Document is contentless\n";
         $$self{CONTENTLESS} = 1;
         return;
+    }
+
+    # If we were given the utf8 option, set an output encoding on our file
+    # handle.  Wrap in an eval in case we're using a version of Perl too old
+    # to understand this.
+    #
+    # This is evil because it changes the global state of a file handle that
+    # we may not own.  However, we can't just blindly encode all output, since
+    # there may be a pre-applied output encoding (such as from PERL_UNICODE)
+    # and then we would double-encode.  This seems to be the least bad
+    # approach.
+    if ($$self{utf8}) {
+        eval { binmode ($$self{output_fh}, ':encoding(UTF-8)') };
     }
 
     # Determine information for the preamble and then output it.
@@ -837,8 +857,12 @@ sub devise_date {
     } else {
         $time = time;
     }
-    my @t = localtime($time);
-    return sprintf ('%04d-%02d-%02d', @t[5,4,3]);
+
+    # Can't use POSIX::strftime(), which uses Fcntl, because MakeMaker
+    # uses this and it has to work in the core which can't load dynamic
+    # libraries.
+    my ($year, $month, $day) = (localtime $time)[5,4,3];
+    return sprintf ("%04d-%02d-%02d", $year + 1900, $month + 1, $day);
 }
 
 # Print out the preamble and the title.  The meaning of the arguments to .TH
@@ -851,7 +875,7 @@ sub devise_date {
 # module, but this order is correct for both Solaris and Linux.
 sub preamble {
     my ($self, $name, $section, $date) = @_;
-    my $preamble = $self->preamble_template;
+    my $preamble = $self->preamble_template (!$$self{utf8});
 
     # Build the index line and make sure that it will be syntactically valid.
     my $index = "$name $section";
@@ -1025,7 +1049,7 @@ sub cmd_head1 {
 sub cmd_head2 {
     my ($self, $attrs, $text) = @_;
     $text = $self->heading_common ($text, $$attrs{start_line});
-    $self->output ($self->switchquotes ('.Sh', $self->mapfonts ($text)));
+    $self->output ($self->switchquotes ('.SS', $self->mapfonts ($text)));
     $self->outindex ('Subsection', $text);
     $$self{NEEDSPACE} = 0;
     return '';
@@ -1061,9 +1085,9 @@ sub cmd_head4 {
 
 # All of the formatting codes that aren't handled internally by the parser,
 # other than L<> and X<>.
-sub cmd_b { return '\f(BS' . $_[2] . '\f(BE' }
-sub cmd_i { return '\f(IS' . $_[2] . '\f(IE' }
-sub cmd_f { return '\f(IS' . $_[2] . '\f(IE' }
+sub cmd_b { return $_[0]->{IN_NAME} ? $_[2] : '\f(BS' . $_[2] . '\f(BE' }
+sub cmd_i { return $_[0]->{IN_NAME} ? $_[2] : '\f(IS' . $_[2] . '\f(IE' }
+sub cmd_f { return $_[0]->{IN_NAME} ? $_[2] : '\f(IS' . $_[2] . '\f(IE' }
 sub cmd_c { return $_[0]->quote_literal ($_[2]) }
 
 # Index entries are just added to the pending entries.
@@ -1077,7 +1101,15 @@ sub cmd_x {
 # a URL.
 sub cmd_l {
     my ($self, $attrs, $text) = @_;
-    return $$attrs{type} eq 'url' ? "<$text>" : $text;
+    if ($$attrs{type} eq 'url') {
+        if (not defined($$attrs{to}) or $$attrs{to} eq $text) {
+            return "<$text>";
+        } else {
+            return "$text <$$attrs{to}>";
+        }
+    } else {
+        return $text;
+    }
 }
 
 ##############################################################################
@@ -1273,7 +1305,7 @@ sub parse_from_filehandle {
 # results are pretty poor.
 #
 # This only works in an ASCII world.  What to do in a non-ASCII world is very
-# unclear.
+# unclear -- hopefully we can assume UTF-8 and just leave well enough alone.
 @ESCAPES{0xA0 .. 0xFF} = (
     "\\ ", undef, undef, undef,            undef, undef, undef, undef,
     undef, undef, undef, undef,            undef, "\\%", undef, undef,
@@ -1294,27 +1326,18 @@ sub parse_from_filehandle {
     "o\\*/" , "u\\*`", "u\\*'", "u\\*^",   "u\\*:", "y\\*'", "\\*(th", "y\\*:",
 ) if ASCII;
 
-# Make sure that at least this works even outside of ASCII.
-$ESCAPES{ord("\\")} = "\\e";
-
 ##############################################################################
 # Premable
 ##############################################################################
 
 # The following is the static preamble which starts all *roff output we
-# generate.  It's completely static except for the font to use as a
-# fixed-width font, which is designed by @CFONT@, and the left and right
-# quotes to use for C<> text, designated by @LQOUTE@ and @RQUOTE@.
+# generate.  Most is static except for the font to use as a fixed-width font,
+# which is designed by @CFONT@, and the left and right quotes to use for C<>
+# text, designated by @LQOUTE@ and @RQUOTE@.  However, the second part, which
+# defines the accent marks, is only used if $escapes is set to true.
 sub preamble_template {
-    return <<'----END OF PREAMBLE----';
-.de Sh \" Subsection heading
-.br
-.if t .Sp
-.ne 5
-.PP
-\fB\\$1\fR
-.PP
-..
+    my ($self, $accents) = @_;
+    my $preamble = <<'----END OF PREAMBLE----';
 .de Sp \" Vertical space (when we can't use .PP)
 .if t .sp .5v
 .if n .sp
@@ -1358,7 +1381,7 @@ sub preamble_template {
 .el       .ds Aq '
 .\"
 .\" If the F register is turned on, we'll generate index entries on stderr for
-.\" titles (.TH), headers (.SH), subsections (.Sh), items (.Ip), and index
+.\" titles (.TH), headers (.SH), subsections (.SS), items (.Ip), and index
 .\" entries marked with X<> in POD.  Of course, you'll have to process the
 .\" output yourself in some meaningful fashion.
 .ie \nF \{\
@@ -1372,6 +1395,10 @@ sub preamble_template {
 .    de IX
 ..
 .\}
+----END OF PREAMBLE----
+
+    if ($accents) {
+        $preamble .= <<'----END OF PREAMBLE----'
 .\"
 .\" Accent mark definitions (@(#)ms.acc 1.5 88/02/08 SMI; from UCB 4.2).
 .\" Fear.  Run.  Save yourself.  No user-serviceable parts.
@@ -1436,6 +1463,8 @@ sub preamble_template {
 .rm #[ #] #H #V #F C
 ----END OF PREAMBLE----
 #`# for cperl-mode
+    }
+    return $preamble;
 }
 
 ##############################################################################
@@ -1448,6 +1477,11 @@ __END__
 =head1 NAME
 
 Pod::Man - Convert POD data to formatted *roff input
+
+=for stopwords
+en em ALLCAPS teeny fixedbold fixeditalic fixedbolditalic stderr utf8
+UTF-8 Allbery Sean Burke Ossanna Solaris formatters troff uppercased
+Christiansen
 
 =head1 SYNOPSIS
 
@@ -1481,23 +1515,23 @@ section 1 unless the file ended in C<.pm> in which case it defaults to
 section 3, to a centered title of "User Contributed Perl Documentation", to
 a centered footer of the Perl version it is run with, and to a left-hand
 footer of the modification date of its input (or the current date if given
-STDIN for input).
+C<STDIN> for input).
 
 Pod::Man assumes that your *roff formatters have a fixed-width font named
-CW.  If yours is called something else (like CR), use the C<fixed> option to
-specify it.  This generally only matters for troff output for printing.
-Similarly, you can set the fonts used for bold, italic, and bold italic
-fixed-width output.
+C<CW>.  If yours is called something else (like C<CR>), use the C<fixed>
+option to specify it.  This generally only matters for troff output for
+printing.  Similarly, you can set the fonts used for bold, italic, and
+bold italic fixed-width output.
 
-Besides the obvious pod conversions, Pod::Man also takes care of formatting
-func(), func(3), and simple variable references like $foo or @bar so you
-don't have to use code escapes for them; complex expressions like
-C<$fred{'stuff'}> will still need to be escaped, though.  It also translates
-dashes that aren't used as hyphens into en dashes, makes long dashes--like
-this--into proper em dashes, fixes "paired quotes," makes C++ look right,
-puts a little space between double underbars, makes ALLCAPS a teeny bit
-smaller in B<troff>, and escapes stuff that *roff treats as special so that
-you don't have to.
+Besides the obvious pod conversions, Pod::Man also takes care of
+formatting func(), func(3), and simple variable references like $foo or
+@bar so you don't have to use code escapes for them; complex expressions
+like C<$fred{'stuff'}> will still need to be escaped, though.  It also
+translates dashes that aren't used as hyphens into en dashes, makes long
+dashes--like this--into proper em dashes, fixes "paired quotes," makes C++
+look right, puts a little space between double underscores, makes ALLCAPS
+a teeny bit smaller in B<troff>, and escapes stuff that *roff treats as
+special so that you don't have to.
 
 The recognized options to new() are as follows.  All options take a single
 argument.
@@ -1513,31 +1547,32 @@ Documentation".
 
 Sets the left-hand footer.  By default, the modification date of the input
 file will be used, or the current date if stat() can't find that file (the
-case if the input is from STDIN), and the date will be formatted as
-YYYY-MM-DD.
+case if the input is from C<STDIN>), and the date will be formatted as
+C<YYYY-MM-DD>.
 
 =item fixed
 
-The fixed-width font to use for vertabim text and code.  Defaults to CW.
-Some systems may want CR instead.  Only matters for B<troff> output.
+The fixed-width font to use for verbatim text and code.  Defaults to
+C<CW>.  Some systems may want C<CR> instead.  Only matters for B<troff>
+output.
 
 =item fixedbold
 
-Bold version of the fixed-width font.  Defaults to CB.  Only matters for
-B<troff> output.
+Bold version of the fixed-width font.  Defaults to C<CB>.  Only matters
+for B<troff> output.
 
 =item fixeditalic
 
 Italic version of the fixed-width font (actually, something of a misnomer,
 since most fixed-width fonts only have an oblique version, not an italic
-version).  Defaults to CI.  Only matters for B<troff> output.
+version).  Defaults to C<CI>.  Only matters for B<troff> output.
 
 =item fixedbolditalic
 
 Bold italic (probably actually oblique) version of the fixed-width font.
-Pod::Man doesn't assume you have this, and defaults to CB.  Some systems
-(such as Solaris) have this font available as CX.  Only matters for B<troff>
-output.
+Pod::Man doesn't assume you have this, and defaults to C<CB>.  Some
+systems (such as Solaris) have this font available as C<CX>.  Only matters
+for B<troff> output.
 
 =item name
 
@@ -1579,14 +1614,41 @@ formats, 5 for miscellaneous information, and 7 for devices.  Still others
 use 1m instead of 8, or some mix of both.  About the only section numbers
 that are reliably consistent are 1, 2, and 3.
 
-By default, section 1 will be used unless the file ends in .pm in which case
-section 3 will be selected.
+By default, section 1 will be used unless the file ends in C<.pm> in which
+case section 3 will be selected.
+
+=item stderr
+
+Send error messages about invalid POD to standard error instead of
+appending a POD ERRORS section to the generated *roff output.
+
+=item utf8
+
+By default, Pod::Man produces the most conservative possible *roff output
+to try to ensure that it will work with as many different *roff
+implementations as possible.  Many *roff implementations cannot handle
+non-ASCII characters, so this means all non-ASCII characters are converted
+either to a *roff escape sequence that tries to create a properly accented
+character (at least for troff output) or to C<X>.
+
+If this option is set, Pod::Man will instead output UTF-8.  If your *roff
+implementation can handle it, this is the best output format to use and
+avoids corruption of documents containing non-ASCII characters.  However,
+be warned that *roff source with literal UTF-8 characters is not supported
+by many implementations and may even result in segfaults and other bad
+behavior.
+
+Be aware that, when using this option, the input encoding of your POD
+source must be properly declared unless it is US-ASCII or Latin-1.  POD
+input without an C<=encoding> command will be assumed to be in Latin-1,
+and if it's actually in UTF-8, the output will be double-encoded.  See
+L<perlpod(1)> for more information on the C<=encoding> command.
 
 =back
 
 The standard Pod::Simple method parse_file() takes one argument naming the
-POD file to read from.  By default, the output is sent to STDOUT, but this
-can be changed with the output_fd() method.
+POD file to read from.  By default, the output is sent to C<STDOUT>, but
+this can be changed with the output_fd() method.
 
 The standard Pod::Simple method parse_from_file() takes up to two
 arguments, the first being the input file to read POD from and the second
@@ -1617,19 +1679,14 @@ invalid.  A quote specification must be one, two, or four characters long.
 
 =head1 BUGS
 
-Eight-bit input data isn't handled at all well at present.  The correct
-approach would be to map EE<lt>E<gt> escapes to the appropriate UTF-8
-characters and then do a translation pass on the output according to the
-user-specified output character set.  Unfortunately, we can't send eight-bit
-data directly to the output unless the user says this is okay, since some
-vendor *roff implementations can't handle eight-bit data.  If the *roff
-implementation can, however, that's far superior to the current hacked
-characters that only work under troff.
+Encoding handling assumes that PerlIO is available and does not work
+properly if it isn't.  The C<utf8> option is therefore not supported
+unless Perl is built with PerlIO support.
 
 There is currently no way to turn off the guesswork that tries to format
 unmarked text appropriately, and sometimes it isn't wanted (particularly
 when using POD to document something other than Perl).  Most of the work
-towards fixing this has now been done, however, and all that's still needed
+toward fixing this has now been done, however, and all that's still needed
 is a user interface.
 
 The NAME section should be recognized specially and index entries emitted
@@ -1650,6 +1707,12 @@ perhaps on the fly as the characters are used.
 Pod::Man is excessively slow.
 
 =head1 CAVEATS
+
+If Pod::Man is given the C<utf8> option, the encoding of its output file
+handle will be forced to UTF-8 if possible, overriding any existing
+encoding.  This will be done even if the file handle is not created by
+Pod::Man and was passed in from outside.  This maintains consistency
+regardless of PERL_UNICODE and other settings.
 
 The handling of hyphens and em dashes is somewhat fragile, and one may get
 the wrong one under some circumstances.  This should only matter for
@@ -1672,8 +1735,8 @@ mine).
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007
-by Russ Allbery <rra@stanford.edu>.
+Copyright 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009
+Russ Allbery <rra@stanford.edu>.
 
 This program is free software; you may redistribute it and/or modify it
 under the same terms as Perl itself.
